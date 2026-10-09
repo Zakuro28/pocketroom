@@ -1,0 +1,113 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-cream: #fff8ee;
+  --color-paper: #f6efe4;
+  --color-ink: #4a3428;
+  --color-ink-soft: #7a6152;
+  --color-line: #ead9c6;
+  --color-heart: #ff5d86;
+  --color-mint: #5ccf9a;
+  --color-sun: #ffc94d;
+  --font-sans: 'Fredoka', ui-rounded, system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+  background: var(--color-paper);
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 3px solid #ffb84d;
+  outline-offset: 2px;
+}
+
+/* Chunky game buttons that press down */
+.chunky {
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.16);
+  transition:
+    transform 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out),
+    background-color 200ms ease,
+    filter 200ms ease;
+}
+.chunky:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.16);
+}
+@media (hover: hover) and (pointer: fine) {
+  .chunky:hover {
+    filter: brightness(1.04);
+  }
+}
+
+/* "+40 💗" rising from your character */
+.heart-pop {
+  font: 700 15px/1 var(--font-sans);
+  color: #ff4f7b;
+  white-space: nowrap;
+  text-shadow:
+    0 2px 0 #fff,
+    0 0 6px rgb(255 255 255 / 0.9);
+  animation: rise 1.4s var(--ease-out) forwards;
+}
+@keyframes rise {
+  0% {
+    transform: translateY(6px) scale(0.7);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-46px) scale(1);
+    opacity: 0;
+  }
+}
+
+/* Weather: clouds drifting and rain or snow falling behind the room */
+.cloud {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(2px);
+  animation: drift linear infinite;
+}
+@keyframes drift {
+  from {
+    transform: translateX(-30vw);
+  }
+  to {
+    transform: translateX(130vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud {
+    animation: none;
+  }
+  .heart-pop {
+    animation-duration: 0.01s;
+  }
+  .chunky {
+    transition: none;
+  }
+}

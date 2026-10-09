@@ -1,0 +1,202 @@
+import { ACTS, DAILY_CAP, USES_PER_DAY } from './acts'
+import { ITEMS, type Activity } from './catalog'
+import { CELL, FORWARD, ROOM, blockedCells, centerOf, findPath, heightOf, rectOf, standCell, type Placed } from './grid'
+import { earn, getSave, rollDay, setSession, spendUse } from './store'
+import { blip, heart } from '../lib/sound'
+
+export type Pose = 'stand' | 'walk' | 'sit' | 'lie' | 'dance'
+
+/** Your character, moved every frame by the scene. Kept out of React so walking never re-renders the page. */
+export const me = {
+  x: 9.5 * CELL,
+  z: 12.5 * CELL,
+  y: 0,
+  rotY: Math.PI / 4,
+  pose: 'stand' as Pose,
+  path: [] as { x: number; z: number }[],
+  /** Where to end up once the path is walked: onto a seat or bed, or just facing the item */
+  finish: null as null | { x: number; z: number; y: number; rotY: number; pose: Pose },
+  task: null as null | { uid: string; act: Activity; until: number; next: number; left: number; per: number },
+}
+
+const cellOf = (x: number, z: number): [number, number] => [Math.min(ROOM.w - 1, Math.max(0, Math.floor(x / CELL))), Math.min(ROOM.d - 1, Math.max(0, Math.floor(z / CELL)))]
+const worldOf = ([cx, cz]: [number, number]) => ({ x: (cx + 0.5) * CELL, z: (cz + 0.5) * CELL })
+
+/** Seat and bed heights the models don't tell us directly */
+function seatHeight(id: string) {
+  const m = ITEMS[id].model
+  if (m.startsWith('bed')) return 0.24
+  if (m === 'bathtub') return 0.1
+  if (m.startsWith('toilet')) return 0.22
+  if (m.startsWith('pillow')) return 0.07
+  if (m.startsWith('stool')) return 0.36
+  if (m.startsWith('lounge')) return 0.17
+  if (m.startsWith('bench')) return 0.2
+  return Math.min(0.26, heightOf(id) * 0.5)
+}
+
+/** Every chair or sofa standing right in front of (or beside) a table or desk */
+function seatNear(placed: Placed[], host: Placed) {
+  const r = rectOf(host)
+  return placed.find((o) => {
+    if (o.uid === host.uid || ITEMS[o.id].act !== 'sit' || ITEMS[o.id].kind !== 'floor') return false
+    const s = rectOf(o)
+    const touchX = s.x <= r.x + r.w && r.x <= s.x + s.w
+    const touchZ = s.z <= r.z + r.d && r.z <= s.z + s.d
+    return touchX && touchZ
+  })
+}
+
+/** Snap the character onto free floor (after furniture moves under them) */
+export function settle(placed: Placed[]) {
+  const blocked = blockedCells(placed)
+  const [cx, cz] = cellOf(me.x, me.z)
+  if (!blocked.has(`${cx},${cz}`) && (me.pose === 'stand' || me.pose === 'walk')) return
+  for (let r = 0; r < Math.max(ROOM.w, ROOM.d); r++)
+    for (let x = cx - r; x <= cx + r; x++)
+      for (let z = cz - r; z <= cz + r; z++) {
+        if (x < 0 || z < 0 || x >= ROOM.w || z >= ROOM.d || blocked.has(`${x},${z}`)) continue
+        const w = worldOf([x, z])
+        Object.assign(me, { x: w.x, z: w.z, y: 0, pose: 'stand', path: [], finish: null })
+        stop()
+        return
+      }
+}
+
+export function stop() {
+  me.task = null
+  setSession((s) => ({ ...s, doing: null }))
+}
+
+/** Stop whatever you're doing: stop walking, get up from a seat or bed */
+export function cancel() {
+  stop()
+  me.path = []
+  me.finish = null
+  if (me.pose !== 'stand') {
+    me.pose = 'stand'
+    me.y = 0
+    settle(getSave().placed)
+  }
+}
+
+/** Tap on furniture while playing: walk over and use it */
+export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
+  const item = ITEMS[p.id]
+  let act = item.act
+  if (!act) return say(`That’s just for looks ✨`)
+  // A sofa or chair facing a TV turns relaxing into TV time
+  if (act === 'sit' && placed.some((o) => ITEMS[o.id].act === 'tv')) act = 'tv'
+  const host = p.on ? placed.find((o) => o.uid === p.on) : undefined
+  const base = host ?? p
+  const seat = item.act === 'sit' ? p : (act === 'pc' || act === 'eat') ? seatNear(placed, base) : undefined
+  const lie = ACTS[act].pose === 'lie'
+
+  // Where to walk to, and how to finish
+  const target = seat ?? (lie ? p : null)
+  let stand: [number, number] | null
+  let finish: (typeof me)['finish']
+  if (target) {
+    stand = standCell(placed, target)
+    const c = centerOf(rectOf(target))
+    const [fx, fz] = FORWARD[target.r]
+    finish = lie
+      ? { x: c.x, z: c.z, y: seatHeight(target.id), rotY: (target.r * Math.PI) / 2, pose: 'lie' }
+      : { x: c.x - fx * 0.04, z: c.z - fz * 0.04, y: seatHeight(target.id), rotY: (target.r * Math.PI) / 2, pose: 'sit' }
+  } else {
+    stand = standCell(placed, p)
+    if (!stand) return say(`Can’t reach that, make some room ✨`)
+    const w = worldOf(stand)
+    const c = centerOf(rectOf(base))
+    finish = { x: w.x, z: w.z, y: 0, rotY: Math.atan2(c.x - w.x, c.z - w.z), pose: ACTS[act].pose === 'dance' ? 'dance' : 'stand' }
+  }
+
+  stop()
+  const from = cellOf(me.x, me.z)
+  const path = stand ? findPath(blockedCells(placed), from, stand) : null
+  // Hop down from a bed or chair first, then walk the path (or pop straight there if nothing connects)
+  me.pose = 'walk'
+  me.y = 0
+  me.path = path ? path.slice(1).map(worldOf) : []
+  me.finish = finish
+  blip()
+
+  // Hearts: today's uses and the daily limit decide what this pays
+  rollDay()
+  const s = getSave()
+  const usesLeft = USES_PER_DAY - (s.uses[act] ?? 0)
+  const capLeft = DAILY_CAP - s.earnedToday
+  const a = ACTS[act]
+  const total = usesLeft > 0 && capLeft > 0 ? Math.min(a.hearts, capLeft) : 0
+  if (usesLeft <= 0) say(`You’ve done that ${USES_PER_DAY}× today, try something else 💗`)
+  else if (capLeft <= 0) say(`Your hearts are full today 💗 Come back tomorrow!`)
+  if (total > 0) spendUse(act)
+  const pops = Math.max(1, Math.round(a.seconds / 1.8))
+  me.task = { uid: p.uid, act, until: 0, next: 0, left: total, per: Math.ceil(total / pops) }
+  setSession((st) => ({ ...st, doing: { uid: p.uid, act, started: 0, seconds: a.seconds, earned: 0, total } }))
+}
+
+/** Called every frame by the scene: walk, settle into the pose, and drip Hearts during the activity */
+export function step(dt: number, now: number, pop: (n: number) => void) {
+  if (me.path.length) {
+    const t = me.path[0]
+    const dx = t.x - me.x
+    const dz = t.z - me.z
+    const dist = Math.hypot(dx, dz)
+    const sp = 1.7 * dt
+    me.rotY = Math.atan2(dx, dz)
+    if (dist <= sp) {
+      me.x = t.x
+      me.z = t.z
+      me.path.shift()
+    } else {
+      me.x += (dx / dist) * sp
+      me.z += (dz / dist) * sp
+    }
+    return
+  }
+  if (me.finish) {
+    const f = me.finish
+    me.x = f.x
+    me.z = f.z
+    me.y = f.y
+    me.rotY = f.rotY
+    me.pose = f.pose
+    me.finish = null
+    if (me.task) {
+      const secs = ACTS[me.task.act].seconds
+      me.task.until = now + secs
+      me.task.next = now + 1
+      setSession((st) => (st.doing ? { ...st, doing: { ...st.doing, started: Date.now() } } : st))
+    }
+    return
+  }
+  const task = me.task
+  if (!task || !task.until) return
+  if (task.left > 0 && now >= task.next) {
+    const n = Math.min(task.per, task.left)
+    task.left -= n
+    task.next = now + 1.8
+    const got = earn(n)
+    if (got > 0) {
+      pop(got)
+      heart()
+      setSession((st) => (st.doing ? { ...st, doing: { ...st.doing, earned: st.doing.earned + got } } : st))
+    }
+  }
+  if (now >= task.until) {
+    if (task.left > 0) {
+      const got = earn(task.left)
+      if (got > 0) pop(got)
+    }
+    // Get up when done
+    me.task = null
+    setSession((st) => ({ ...st, doing: null }))
+    if (me.pose === 'sit' || me.pose === 'lie') {
+      const placed = getSave().placed
+      me.pose = 'stand'
+      me.y = 0
+      settle(placed)
+    } else me.pose = 'stand'
+  }
+}

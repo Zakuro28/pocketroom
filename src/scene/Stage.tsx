@@ -1,0 +1,102 @@
+import { Suspense, useCallback, useEffect, useRef } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Vector3, type OrthographicCamera as ThreeOrthographicCamera } from 'three'
+import { OrthographicCamera, useGLTF } from '@react-three/drei'
+import { CATALOG } from '../game/catalog'
+import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
+import { getSession, setSession, useSave, useSession } from '../game/store'
+import { goUse, settle } from '../game/character'
+import { blip } from '../lib/sound'
+import Character from './Character'
+import { Ghost, PlacedItem } from './Furniture'
+import Placer from './Placer'
+import Room from './Room'
+
+// Start downloading every furniture model right away (2 MB in all), so the shop opens instantly
+new Set(CATALOG.map((i) => i.model)).forEach((m) => useGLTF.preload(`/models/${m}.glb`))
+
+const W = ROOM.w * CELL
+const D = ROOM.d * CELL
+const CENTER: [number, number, number] = [W / 2, WALL_H / 3, D / 2]
+
+/** Screen-up in the isometric view, so the room can glide up out of the way of the decorating drawer */
+const UP = new Vector3(-1, 2, -1).normalize()
+
+/** The isometric camera, zoomed so the whole studio fits any screen. While decorating, the room eases up into the space above the drawer. */
+function Camera({ editing }: { editing: boolean }) {
+  const size = useThree((s) => s.size)
+  const cam = useRef<ThreeOrthographicCamera>(null)
+  const across = (W + D) * Math.SQRT1_2 + 0.6
+  const tall = (W + D) * 0.41 + WALL_H * 0.82 + 0.5
+  const fit = Math.min(size.width / across, size.height / tall)
+  // While decorating, the room fits the top 60% of the screen, above the drawer
+  const editFit = Math.min(size.width / across, (size.height * 0.6) / tall)
+  const lift = useRef(0)
+  useFrame((_, dt) => {
+    const c = cam.current
+    if (!c) return
+    const want = editing ? 1 : 0
+    if (Math.abs(lift.current - want) < 0.001) return
+    lift.current += (want - lift.current) * Math.min(1, dt * 8)
+    const zoom = fit + (editFit - fit) * lift.current
+    // Center the room in that top area: move the view down, which carries the room up
+    const shift = (size.height * 0.2 * lift.current) / zoom
+    const target = new Vector3(...CENTER).addScaledVector(UP, -shift)
+    c.zoom = zoom
+    c.position.set(target.x + 14, target.y + 14, target.z + 14)
+    c.lookAt(target)
+    c.updateProjectionMatrix()
+  })
+  return <OrthographicCamera ref={cam} makeDefault zoom={fit} position={[CENTER[0] + 14, CENTER[1] + 14, CENTER[2] + 14]} near={0.1} far={100} onUpdate={(c) => c.lookAt(...CENTER)} />
+}
+
+export default function Stage({ say, sky }: { say: (msg: string) => void; sky: string }) {
+  const placed = useSave((s) => s.placed)
+  const mode = useSession((s) => s.mode)
+  const selected = useSession((s) => s.selected)
+  const ghost = useSession((s) => s.ghost)
+
+  // Furniture moved around while decorating can end up where your character is standing
+  useEffect(() => settle(placed), [placed])
+
+  const onTap = useCallback(
+    (p: Placed) => {
+      const s = getSession()
+      if (s.ghost) return
+      if (s.mode === 'edit') {
+        blip()
+        setSession((st) => ({ ...st, selected: st.selected === p.uid ? null : p.uid }))
+      } else goUse(p, placed, say)
+    },
+    [placed, say],
+  )
+
+  return (
+    <Canvas shadows dpr={[1, 1.75]} gl={{ antialias: true, alpha: true }} onPointerMissed={() => mode === 'edit' && !ghost && setSession((s) => ({ ...s, selected: null }))}>
+      <Camera editing={mode === 'edit'} />
+      <hemisphereLight args={['#fff4e6', '#c9b6a6', 1.3]} />
+      <directionalLight
+        position={[W / 2 + 6, 10, D / 2 + 3]}
+        intensity={1.6}
+        color="#fff1dc"
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-left={-8}
+        shadow-camera-right={8}
+        shadow-camera-top={8}
+        shadow-camera-bottom={-8}
+        shadow-bias={-0.0005}
+        shadow-normalBias={0.02}
+      />
+      <Suspense fallback={null}>
+        <Room sky={sky} />
+        {placed.map((p) => (
+          <PlacedItem key={p.uid} p={p} all={placed} selected={mode === 'edit' && selected === p.uid} onTap={onTap} />
+        ))}
+        {ghost && <Ghost g={ghost} all={placed} />}
+        <Character />
+      </Suspense>
+      {mode === 'edit' && ghost && <Placer />}
+    </Canvas>
+  )
+}
