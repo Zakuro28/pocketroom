@@ -1,11 +1,11 @@
-import { Suspense, useCallback, useEffect, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Vector3, type OrthographicCamera as ThreeOrthographicCamera } from 'three'
+import { Vector3, type Mesh, type MeshBasicMaterial, type OrthographicCamera as ThreeOrthographicCamera } from 'three'
 import { OrthographicCamera, useGLTF } from '@react-three/drei'
 import { CATALOG } from '../game/catalog'
 import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
 import { getSession, setSession, useSave, useSession } from '../game/store'
-import { goUse, settle } from '../game/character'
+import { goUse, settle, walkTo } from '../game/character'
 import { blip } from '../lib/sound'
 import Character from './Character'
 import { Ghost, PlacedItem } from './Furniture'
@@ -50,11 +50,32 @@ function Camera({ editing }: { editing: boolean }) {
   return <OrthographicCamera ref={cam} makeDefault zoom={fit} position={[CENTER[0] + 14, CENTER[1] + 14, CENTER[2] + 14]} near={0.1} far={100} onUpdate={(c) => c.lookAt(...CENTER)} />
 }
 
+/** A ring that ripples out where you tapped the floor */
+function TapRing({ x, z }: { x: number; z: number }) {
+  const ref = useRef<Mesh>(null)
+  const t = useRef(0)
+  useFrame((_, dt) => {
+    const m = ref.current
+    if (!m) return
+    t.current = Math.min(1, t.current + dt * 2.2)
+    m.scale.setScalar(0.4 + t.current * 0.8)
+    ;(m.material as MeshBasicMaterial).opacity = 0.7 * (1 - t.current)
+    m.visible = t.current < 1
+  })
+  return (
+    <mesh ref={ref} rotation-x={-Math.PI / 2} position={[x, 0.012, z]}>
+      <ringGeometry args={[0.16, 0.22, 32]} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.7} depthWrite={false} />
+    </mesh>
+  )
+}
+
 export default function Stage({ say, sky }: { say: (msg: string) => void; sky: string }) {
   const placed = useSave((s) => s.placed)
   const mode = useSession((s) => s.mode)
   const selected = useSession((s) => s.selected)
   const ghost = useSession((s) => s.ghost)
+  const [marker, setMarker] = useState<{ x: number; z: number; at: number } | null>(null)
 
   // Furniture moved around while decorating can end up where your character is standing
   useEffect(() => settle(placed), [placed])
@@ -89,7 +110,20 @@ export default function Stage({ say, sky }: { say: (msg: string) => void; sky: s
         shadow-normalBias={0.02}
       />
       <Suspense fallback={null}>
-        <Room sky={sky} />
+        <Room
+          sky={sky}
+          onFloorTap={(x, z) => {
+            const st = getSession()
+            if (st.mode !== 'play') {
+              // While decorating, tapping bare floor lets go of the selected item
+              if (!st.ghost) setSession((x) => ({ ...x, selected: null }))
+              return
+            }
+            walkTo(x, z, placed)
+            setMarker({ x, z, at: performance.now() })
+          }}
+        />
+        {marker && <TapRing key={marker.at} x={marker.x} z={marker.z} />}
         {placed.map((p) => (
           <PlacedItem key={p.uid} p={p} all={placed} selected={mode === 'edit' && selected === p.uid} onTap={onTap} />
         ))}

@@ -10,7 +10,7 @@ const T = 0.12 // wall thickness
 const BASE = 0.28 // the slab under the floor, seen at the front edges
 
 /** The studio shell: a thick floor slab, two back walls with wallpaper, two windows and the front door */
-export default function Room({ sky }: { sky: string }) {
+export default function Room({ sky, onFloorTap }: { sky: string; onFloorTap: (x: number, z: number) => void }) {
   const floorId = useSave((s) => s.floor)
   const wallId = useSave((s) => s.wall)
   const floorTex = useMemo(() => {
@@ -36,7 +36,15 @@ export default function Room({ sky }: { sky: string }) {
   return (
     <group>
       {/* Floor and the slab under it */}
-      <mesh rotation-x={-Math.PI / 2} position={[W / 2, 0, D / 2]} receiveShadow>
+      <mesh
+        rotation-x={-Math.PI / 2}
+        position={[W / 2, 0, D / 2]}
+        receiveShadow
+        onClick={(e) => {
+          e.stopPropagation()
+          onFloorTap(e.point.x, e.point.z)
+        }}
+      >
         <planeGeometry args={[W, D]} />
         <meshStandardMaterial map={floorTex} roughness={0.85} />
       </mesh>

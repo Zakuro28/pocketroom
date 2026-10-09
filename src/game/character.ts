@@ -80,6 +80,30 @@ export function cancel() {
   }
 }
 
+/** Tap on the floor while playing: walk there (or as close as the furniture allows) */
+export function walkTo(x: number, z: number, placed: Placed[]) {
+  cancel()
+  const blocked = blockedCells(placed)
+  let goal = cellOf(x, z)
+  if (blocked.has(`${goal[0]},${goal[1]}`)) {
+    // The nearest free cell to the tapped spot
+    let best: [number, number] | null = null
+    for (let cx = 0; cx < ROOM.w; cx++)
+      for (let cz = 0; cz < ROOM.d; cz++) {
+        if (blocked.has(`${cx},${cz}`)) continue
+        if (!best || Math.hypot(cx - goal[0], cz - goal[1]) < Math.hypot(best[0] - goal[0], best[1] - goal[1])) best = [cx, cz]
+      }
+    if (!best) return
+    goal = best
+  }
+  const path = findPath(blocked, cellOf(me.x, me.z), goal)
+  if (!path) return
+  me.pose = 'walk'
+  me.path = path.slice(1).map(worldOf)
+  const end = worldOf(goal)
+  me.finish = { x: end.x, z: end.z, y: 0, rotY: me.rotY, pose: 'stand' }
+}
+
 /** Tap on furniture while playing: walk over and use it */
 export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
   const item = ITEMS[p.id]
@@ -160,7 +184,7 @@ export function step(dt: number, now: number, pop: (n: number) => void) {
     me.x = f.x
     me.z = f.z
     me.y = f.y
-    me.rotY = f.rotY
+    if (me.task) me.rotY = f.rotY
     me.pose = f.pose
     me.finish = null
     if (me.task) {
