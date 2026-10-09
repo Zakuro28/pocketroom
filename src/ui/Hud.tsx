@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion } from 'motion/react'
-import { Settings, Sparkles, X } from 'lucide-react'
+import { Settings, Shirt, Sparkles, X } from 'lucide-react'
 import { ACTS, DAILY_CAP } from '../game/acts'
 import type { Activity } from '../game/catalog'
 import { cancel } from '../game/character'
@@ -21,7 +21,7 @@ function Rolling({ value }: { value: number }) {
 }
 
 /** Hearts, today's progress toward the daily limit, and the room's style score */
-export function Hud({ onSettings, weatherLabel }: { onSettings: () => void; weatherLabel: string | null }) {
+export function Hud({ onSettings, onWardrobe, weatherLabel }: { onSettings: () => void; onWardrobe: () => void; weatherLabel: string | null }) {
   const hearts = useSave((s) => s.hearts)
   const earned = useSave((s) => s.earnedToday)
   const style = useSave((s) => styleScore(s.placed))
@@ -48,6 +48,9 @@ export function Hud({ onSettings, weatherLabel }: { onSettings: () => void; weat
         <span className="flex items-center gap-1.5 rounded-full bg-cream/95 px-3.5 py-2 text-sm font-semibold shadow-[0_4px_0_rgba(74,52,40,0.12)]" title="Room style grows with what you place">
           <Sparkles className="size-4 text-sun" aria-hidden /> <Rolling value={style} />
         </span>
+        <button type="button" onClick={onWardrobe} aria-label="Wardrobe" className="chunky grid size-11 place-items-center rounded-full bg-cream">
+          <Shirt className="size-5" />
+        </button>
         <button type="button" onClick={onSettings} aria-label="Settings" className="chunky grid size-11 place-items-center rounded-full bg-cream">
           <Settings className="size-5" />
         </button>

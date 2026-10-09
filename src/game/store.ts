@@ -4,6 +4,8 @@ import { ITEMS } from './catalog'
 import { canPlace, type Placed, type Rot } from './grid'
 import { STARTER } from './starter'
 import { FLOORS, WALLS } from './surfaces'
+import type { Profile, Slot } from './look'
+import { CLOTHING, STARTER_CLOTHES } from './wardrobe'
 
 /** Everything that's saved: the room, what's in storage, Hearts and today's progress */
 export type Save = {
@@ -17,6 +19,10 @@ export type Save = {
   wall: string
   owned: string[]
   muted: boolean
+  /** Your character; null until it has been created */
+  profile: Profile | null
+  /** Clothes you own */
+  clothes: string[]
 }
 
 /** Things that only matter while playing: edit mode, what's selected, what's being placed */
@@ -46,6 +52,8 @@ const fresh = (): Save => ({
   wall: WALLS[0].id,
   owned: [FLOORS[0].id, WALLS[0].id],
   muted: false,
+  profile: null,
+  clothes: STARTER_CLOTHES,
 })
 
 function load(): Save {
@@ -65,9 +73,14 @@ let timer = 0
 
 const emit = () => listeners.forEach((l) => l())
 
+const saveWatchers = new Set<() => void>()
+/** Hear about every change to the saved game (cloud sync uses this) */
+export const subscribeSave = (fn: () => void) => void saveWatchers.add(fn)
+
 export function setSave(fn: (s: Save) => Save) {
   save = fn(save)
   emit()
+  saveWatchers.forEach((w) => w())
   clearTimeout(timer)
   timer = window.setTimeout(() => {
     try {
@@ -202,3 +215,28 @@ export function spendUse(act: string) {
 }
 
 export const setMuted = (muted: boolean) => setSave((s) => ({ ...s, muted }))
+
+export const setProfile = (profile: Profile) => setSave((s) => ({ ...s, profile }))
+
+export function buyClothing(id: string) {
+  const item = CLOTHING[id]
+  if (save.clothes.includes(id) || save.hearts < item.price) return false
+  setSave((s) => ({ ...s, hearts: s.hearts - item.price, clothes: [...s.clothes, id] }))
+  return true
+}
+
+/** Put on (or, with null, take off) a piece of clothing. Tops, bottoms and shoes can't be taken off. */
+export function wear(slot: Slot, id: string | null) {
+  setSave((s) => (s.profile ? { ...s, profile: { ...s.profile, outfit: { ...s.profile.outfit, [slot]: id } } } : s))
+}
+
+/** Swap in a saved game that came from the player's account */
+export function replaceSave(next: Save) {
+  save = { ...fresh(), ...next }
+  emit()
+  try {
+    localStorage.setItem(KEY, JSON.stringify(save))
+  } catch {
+    // Kept in memory for this visit
+  }
+}

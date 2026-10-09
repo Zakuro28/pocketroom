@@ -7,7 +7,7 @@ import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
 import { getSession, setSession, useSave, useSession } from '../game/store'
 import { goUse, settle, walkTo } from '../game/character'
 import { blip } from '../lib/sound'
-import Character from './Character'
+import Avatar from './Avatar'
 import { Ghost, PlacedItem } from './Furniture'
 import Placer from './Placer'
 import Room from './Room'
@@ -128,7 +128,7 @@ export default function Stage({ say, sky }: { say: (msg: string) => void; sky: s
           <PlacedItem key={p.uid} p={p} all={placed} selected={mode === 'edit' && selected === p.uid} onTap={onTap} />
         ))}
         {ghost && <Ghost g={ghost} all={placed} />}
-        <Character />
+        <Avatar />
       </Suspense>
       {mode === 'edit' && ghost && <Placer />}
     </Canvas>

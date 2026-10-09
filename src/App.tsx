@@ -2,13 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { Check, Paintbrush } from 'lucide-react'
 import { cancel } from './game/character'
-import { rollDay, setSession, useSession } from './game/store'
+import { rollDay, setProfile, setSession, useSave, useSession } from './game/store'
+import './lib/auth'
 import { blip } from './lib/sound'
 import { skyColors, useWeather } from './lib/weather'
 import Stage from './scene/Stage'
 import Decorate from './ui/Decorate'
 import { DoingPill, Hud } from './ui/Hud'
 import Settings, { PlacePicker } from './ui/Settings'
+import Closet from './ui/Closet'
+import Creator from './ui/Creator'
 import Sky from './ui/Sky'
 
 const EASE = [0.23, 1, 0.32, 1] as const
@@ -16,6 +19,9 @@ const EASE = [0.23, 1, 0.32, 1] as const
 export default function App() {
   const mode = useSession((s) => s.mode)
   const [settings, setSettings] = useState(false)
+  const [wardrobe, setWardrobe] = useState(false)
+  const [customizing, setCustomizing] = useState(false)
+  const profile = useSave((s) => s.profile)
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([])
   const nextToast = useRef(0)
   const { place, weather, asked, setPlace, useMyLocation, dismiss } = useWeather()
@@ -56,7 +62,7 @@ export default function App() {
         </div>
 
         <div className="pointer-events-none absolute inset-0">
-          <Hud onSettings={() => setSettings(true)} weatherLabel={weatherLabel} />
+          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} weatherLabel={weatherLabel} />
           {mode === 'play' && <DoingPill />}
 
           {/* Toasts */}
@@ -97,11 +103,25 @@ export default function App() {
           )}
         </div>
 
-        <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} />
+        <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} onCustomize={() => setCustomizing(true)} />
+        <Closet open={wardrobe} onClose={() => setWardrobe(false)} say={say} />
+
+        {/* New players make their character first; Settings can reopen this to change it */}
+        {(!profile || customizing) && (
+          <Creator
+            initial={profile}
+            onCancel={profile ? () => setCustomizing(false) : undefined}
+            onDone={(p) => {
+              setProfile(p)
+              setCustomizing(false)
+              if (!profile) say(`Welcome home, ${p.name}! 🏠`)
+            }}
+          />
+        )}
 
         {/* First visit: offer the real weather outside */}
         <AnimatePresence>
-          {!asked && (
+          {!asked && profile && (
             <motion.div className="fixed inset-0 z-30 grid place-items-center bg-ink/25 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }}>
               <motion.div
                 role="dialog"
