@@ -97,13 +97,13 @@ export default function Creator({ initial, onDone, onCancel }: { initial: Profil
   const [step, setStep] = useState(0)
   const set = (patch: Partial<Profile>) => setP((x) => ({ ...x, ...patch }))
   const age = p.birthday ? ageOn(p.birthday) : null
-  const tooYoung = age !== null && age < MIN_AGE
-  const validBirthday = age !== null && age >= MIN_AGE && age <= 110
-  const canNext = step === 0 ? p.name.trim().length >= 2 && validBirthday : true
+  // Checked when you tap Next, not while picking: phone date pickers jump to today's date the moment they open
+  const [blocked, setBlocked] = useState(false)
+  const canNext = step === 0 ? p.name.trim().length >= 2 && age !== null && age >= 0 && age <= 110 : true
   const inGame = gameHeight({ ...p, birthday: p.birthday || '2000-01-01' })
   const steps = ['About you', 'Your look', 'Your body']
 
-  if (tooYoung && !editing)
+  if (blocked && !editing)
     return (
       <div className="fixed inset-0 z-50 grid place-items-center bg-paper p-6">
         <div className="max-w-sm text-center">
@@ -112,7 +112,11 @@ export default function Creator({ initial, onDone, onCancel }: { initial: Profil
           </p>
           <h1 className="mt-4 text-2xl font-bold">PocketRoom is for ages {MIN_AGE} and up</h1>
           <p className="mt-2 text-ink-soft">Come back on your {MIN_AGE}th birthday and your room will be waiting for you!</p>
-          <button type="button" onClick={() => set({ birthday: '' })} className="chunky mt-6 rounded-full bg-white px-5 py-3 font-semibold">
+          <button type="button" onClick={() => {
+              setBlocked(false)
+              set({ birthday: '' })
+            }}
+            className="chunky mt-6 rounded-full bg-white px-5 py-3 font-semibold">
             Go back
           </button>
         </div>
@@ -210,6 +214,7 @@ export default function Creator({ initial, onDone, onCancel }: { initial: Profil
             disabled={!canNext}
             onClick={() => {
               blip()
+              if (step === 0 && !editing && age !== null && age < MIN_AGE) return setBlocked(true)
               if (step < steps.length - 1) setStep(step + 1)
               else onDone({ ...p, name: p.name.trim() })
             }}
