@@ -531,3 +531,20 @@ export function Mannequin({ profile, height }: { profile: Profile; height: numbe
     </group>
   )
 }
+
+/** Someone else in the room (your partner, or the friend you're visiting): stands around, waves now and then, with their name above */
+const guestDrive: Drive = (t) => ({ pose: t % 9 < 1.2 ? 'wave' : 'stand', walking: false })
+export function Guest({ profile, name, x, z }: { profile: Profile; name: string; x: number; z: number }) {
+  return (
+    <group position={[x, 0, z]} rotation-y={Math.PI / 4} scale={1.25}>
+      <mesh rotation-x={-Math.PI / 2} position-y={0.008}>
+        <circleGeometry args={[0.17, 24]} />
+        <meshBasicMaterial color="#000" transparent opacity={0.16} depthWrite={false} />
+      </mesh>
+      <Body p={profile} height={gameHeight(profile)} drive={guestDrive} />
+      <Html position={[0, 1.02, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="rounded-full bg-cream/95 px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink shadow">{name}</div>
+      </Html>
+    </group>
+  )
+}

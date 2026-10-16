@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { LocateFixed, LogOut, MapPin, Search, UserRound, Volume2, VolumeX, X } from 'lucide-react'
 import { canSignIn, signInWithGoogle, signOut, useUser } from '../lib/auth'
 import { setMuted, useSave } from '../game/store'
+import { coupleOf, endLink, otherOf, useTogether } from '../lib/together'
 import { searchCity, type Place } from '../lib/weather'
 
 /** City search with "use my location", shared by settings and the first-visit weather prompt */
@@ -62,6 +63,10 @@ export function PlacePicker({ onPick, onLocate }: { onPick: (p: Place) => void; 
 export default function Settings({ open, onClose, place, onPick, onLocate, onCustomize }: { open: boolean; onClose: () => void; place: Place | null; onPick: (p: Place) => void; onLocate: () => Promise<boolean>; onCustomize: () => void }) {
   const muted = useSave((s) => s.muted)
   const user = useUser()
+  const couple = useTogether((t) => coupleOf(t))
+  const partner = useTogether((t) => (couple ? t.cards[otherOf(couple)]?.name || 'your partner' : ''))
+  const [breaking, setBreaking] = useState(false)
+  const [breakErr, setBreakErr] = useState('')
   return (
     <AnimatePresence>
       {open && (
@@ -91,7 +96,8 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{user.name || 'Signed in'}</p>
-                    <p className="truncate text-xs text-ink-soft">{user.email} · saved to your account</p>
+                    <p className="truncate text-xs text-ink-soft">{user.email}</p>
+                    <p className="text-xs font-medium text-mint">Saved to your account</p>
                   </div>
                   <button type="button" onClick={() => void signOut()} aria-label="Sign out" className="grid size-9 place-items-center rounded-full text-ink-soft hover:bg-paper">
                     <LogOut className="size-4" />
@@ -122,6 +128,38 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
             >
               ✨ Edit my character
             </button>
+            {/* Relationship: a couple is a contract, so breaking up comes with a 1-month wait */}
+            {couple && (
+              <div className="mt-3 rounded-2xl bg-white p-4">
+                <p className="font-semibold">💞 In a couple with {partner}</p>
+                {breaking ? (
+                  <>
+                    <p className="mt-1 text-sm text-ink-soft">You’ll both keep a copy of the room and half the Hearts jar. After a breakup there’s a 1-month wait before a new couple.</p>
+                    {breakErr && <p className="mt-2 text-sm text-heart">{breakErr}</p>}
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" onClick={() => setBreaking(false)} className="chunky flex-1 rounded-xl bg-paper py-2.5 text-sm font-semibold">
+                        Stay together
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const err = await endLink(couple.id)
+                          if (err) setBreakErr(err)
+                          else setBreaking(false)
+                        }}
+                        className="chunky flex-1 rounded-xl bg-heart py-2.5 text-sm font-bold text-white"
+                      >
+                        Break up
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => setBreaking(true)} className="mt-1 text-sm font-semibold text-ink-soft underline underline-offset-2">
+                    Break up…
+                  </button>
+                )}
+              </div>
+            )}
             <button type="button" onClick={() => setMuted(!muted)} aria-pressed={!muted} className="chunky mt-3 flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3.5">
               <span className="flex items-center gap-3 font-semibold">
                 {muted ? <VolumeX className="size-5 text-ink-soft" aria-hidden /> : <Volume2 className="size-5 text-mint" aria-hidden />} Sound
@@ -131,7 +169,7 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
               </span>
             </button>
             <h3 className="mt-6 text-sm font-semibold text-ink-soft">Weather outside</h3>
-            <p className="mt-1 mb-3 text-sm">{place ? `Showing the weather in ${place.name}` : 'Showing the sky for your local time'}</p>
+            <p className="mt-1 mb-3 text-sm">{place ? (place.name === 'Your location' ? 'Showing the weather where you are' : `Showing the weather in ${place.name}`) : 'Showing the sky for your local time'}</p>
             <PlacePicker
               onPick={(p) => {
                 onPick(p)

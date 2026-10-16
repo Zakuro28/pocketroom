@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { CELL, DOOR, ROOM, WALL_H, WINDOWS } from '../game/grid'
-import { useSave } from '../game/store'
+import { useFloor, useWall } from '../game/store'
 import { FLOORS, WALLS } from '../game/surfaces'
 import { surfaceTexture } from './textures'
 
@@ -11,8 +11,8 @@ const BASE = 0.28 // the slab under the floor, seen at the front edges
 
 /** The studio shell: a thick floor slab, two back walls with wallpaper, two windows and the front door */
 export default function Room({ sky, onFloorTap }: { sky: string; onFloorTap: (x: number, z: number) => void }) {
-  const floorId = useSave((s) => s.floor)
-  const wallId = useSave((s) => s.wall)
+  const floorId = useFloor()
+  const wallId = useWall()
   const floorTex = useMemo(() => {
     const t = surfaceTexture(FLOORS.find((f) => f.id === floorId) ?? FLOORS[0]).clone()
     t.repeat.set(W, D)

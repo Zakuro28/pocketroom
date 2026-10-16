@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
 import { getSave, replaceSave, subscribeSave, type Save } from '../game/store'
+import { send, supabase } from './supa'
+import { startTogether, stopTogether } from './together'
 
-export const supabase: SupabaseClient | null = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null
 export const canSignIn = supabase !== null
 
 export type User = { id: string; email: string; name: string } | null
@@ -31,11 +30,16 @@ export const signOut = () => supabase?.auth.signOut()
  * On sign-in: if this account already has a saved game, load it here; otherwise upload the game on this device.
  * After that, every change is saved to the account (gathered for a couple of seconds so it doesn't flood the network).
  */
+let attached: string | null = null
 async function attach(id: string) {
-  if (!supabase) return
+  // Signing in reports itself twice (the saved session and the sign-in event); load the save once
+  if (!supabase || attached === id) return
+  attached = id
   const { data } = await supabase.from('players').select('save').eq('id', id).maybeSingle()
   if (data?.save) replaceSave(data.save as Save)
   else await supabase.from('players').upsert({ id, save: getSave() })
+  // Friends, couples and the shared home start once the save is in place
+  void startTogether(id)
 }
 
 if (supabase) {
@@ -51,14 +55,26 @@ if (supabase) {
       setUser({ id: s.user.id, email: s.user.email ?? '', name: (s.user.user_metadata.full_name as string) ?? '' })
       void attach(s.user.id)
     }
-    if (event === 'SIGNED_OUT') setUser(null)
+    if (event === 'SIGNED_OUT') {
+      attached = null
+      setUser(null)
+      stopTogether()
+    }
   })
 
   let timer = 0
+  let waiting = false
+  const upload = () => {
+    clearTimeout(timer)
+    waiting = false
+    if (user) send(supabase!.from('players').upsert({ id: user.id, save: getSave(), updated_at: new Date().toISOString() }))
+  }
   subscribeSave(() => {
     if (!user) return
     clearTimeout(timer)
-    const id = user.id
-    timer = window.setTimeout(() => void supabase!.from('players').upsert({ id, save: getSave(), updated_at: new Date().toISOString() }), 2000)
+    waiting = true
+    timer = window.setTimeout(upload, 2000)
   })
+  // Closing or leaving the tab saves right away, so the last couple of seconds aren't lost
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && waiting && upload())
 }

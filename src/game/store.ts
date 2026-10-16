@@ -23,7 +23,15 @@ export type Save = {
   profile: Profile | null
   /** Clothes you own */
   clothes: string[]
+  /** While living with a partner: the couple's id. The room and Hearts then mirror the shared home. */
+  home: string | null
 }
+
+/** A room as other players see it */
+export type RoomView = { placed: Placed[]; floor: string; wall: string }
+
+/** Visiting someone else's room */
+export type Visit = { id: string; name: string; look: Profile | null; room: RoomView }
 
 /** Things that only matter while playing: edit mode, what's selected, what's being placed */
 export type Session = {
@@ -33,11 +41,21 @@ export type Session = {
   ghost: (Placed & { valid: boolean; moving?: string }) | null
   /** The activity your character is doing (started = when it began in ms, 0 while still walking there) */
   doing: { uid: string; act: string; started: number; seconds: number; earned: number; total: number } | null
+  /** Whose room you're in, when it isn't your own */
+  visit: Visit | null
+  /** Today's Heart limit: 1,200 alone, 2,400 for a couple */
+  cap: number
 }
 
 const KEY = 'pocketroom:v1'
+
+// The server's clock, once known. Changing the phone's clock then can't start a new day early.
+let skew = 0
+export const setServerTime = (ms: number) => void (skew = ms - Date.now())
+export const now = () => Date.now() + skew
+
 export const today = () => {
-  const d = new Date()
+  const d = new Date(now())
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
@@ -54,6 +72,7 @@ const fresh = (): Save => ({
   muted: false,
   profile: null,
   clothes: STARTER_CLOTHES,
+  home: null,
 })
 
 function load(): Save {
@@ -67,7 +86,9 @@ function load(): Save {
 }
 
 let save = load()
-let session: Session = { mode: 'play', selected: null, ghost: null, doing: null }
+// Local testing only (npm run dev): plenty of Hearts to try everything. Never in the live build.
+if (import.meta.env.DEV) save = { ...save, hearts: 999_999 }
+let session: Session = { mode: 'play', selected: null, ghost: null, doing: null, visit: null, cap: DAILY_CAP }
 const listeners = new Set<() => void>()
 let timer = 0
 
@@ -106,9 +127,16 @@ export const useSession = <T,>(pick: (s: Session) => T) => useSyncExternalStore(
 export const getSave = () => save
 export const getSession = () => session
 
-/** A new day (local midnight) clears today's Heart count and activity uses */
+/** The room on screen: someone else's while visiting, otherwise yours */
+export const getPlaced = () => session.visit?.room.placed ?? save.placed
+export const usePlaced = () => useSyncExternalStore(subscribe, getPlaced)
+export const useFloor = () => useSyncExternalStore(subscribe, () => session.visit?.room.floor ?? save.floor)
+export const useWall = () => useSyncExternalStore(subscribe, () => session.visit?.room.wall ?? save.wall)
+export const setCap = (cap: number) => session.cap !== cap && setSession((s) => ({ ...s, cap }))
+
+/** A new day (local midnight) clears today's Heart count and activity uses. Only forward: winding the clock back never resets it. */
 export function rollDay() {
-  if (save.day !== today()) setSave((s) => ({ ...s, day: today(), earnedToday: 0, uses: {} }))
+  if (save.day < today()) setSave((s) => ({ ...s, day: today(), earnedToday: 0, uses: {} }))
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
@@ -203,7 +231,7 @@ export function recolor(uidToPaint: string, color: string) {
 /** Adds Hearts from an activity, up to today's limit. Returns how many actually landed. */
 export function earn(n: number) {
   rollDay()
-  const room = Math.max(0, DAILY_CAP - save.earnedToday)
+  const room = Math.max(0, session.cap - save.earnedToday)
   const got = Math.min(n, room)
   if (got > 0) setSave((s) => ({ ...s, hearts: s.hearts + got, earnedToday: s.earnedToday + got }))
   return got

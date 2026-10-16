@@ -1,13 +1,14 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Vector3, type Mesh, type MeshBasicMaterial, type OrthographicCamera as ThreeOrthographicCamera } from 'three'
 import { OrthographicCamera, useGLTF } from '@react-three/drei'
 import { CATALOG } from '../game/catalog'
 import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
-import { getSession, setSession, useSave, useSession } from '../game/store'
-import { goUse, settle, walkTo } from '../game/character'
+import { getSession, setSession, usePlaced, useSave, useSession } from '../game/store'
+import { goUse, guestSpot, settle, walkTo } from '../game/character'
+import { coupleOf, isOnline, otherOf, useTogether } from '../lib/together'
 import { blip } from '../lib/sound'
-import Avatar from './Avatar'
+import Avatar, { Guest } from './Avatar'
 import { Ghost, PlacedItem } from './Furniture'
 import Placer from './Placer'
 import Room from './Room'
@@ -71,8 +72,18 @@ function TapRing({ x, z }: { x: number; z: number }) {
 }
 
 export default function Stage({ say, sky }: { say: (msg: string) => void; sky: string }) {
-  const placed = useSave((s) => s.placed)
+  const placed = usePlaced()
   const mode = useSession((s) => s.mode)
+  const visit = useSession((s) => s.visit)
+  const living = useSave((s) => s.home)
+  // Someone else in the room: the friend you're visiting, or your partner when they're online at home
+  const partner = useTogether((t) => {
+    const c = coupleOf(t)
+    const card = c && living === c.id && !visit ? t.cards[otherOf(c)] : undefined
+    return card && isOnline(card) && card.look ? card : null
+  })
+  const guest = visit ? (visit.look ? { look: visit.look, name: visit.name } : null) : partner ? { look: partner.look!, name: partner.name } : null
+  const spot = useMemo(() => guestSpot(placed), [placed])
   const selected = useSession((s) => s.selected)
   const ghost = useSession((s) => s.ghost)
   const [marker, setMarker] = useState<{ x: number; z: number; at: number } | null>(null)
@@ -129,6 +140,7 @@ export default function Stage({ say, sky }: { say: (msg: string) => void; sky: s
         ))}
         {ghost && <Ghost g={ghost} all={placed} />}
         <Avatar />
+        {guest && <Guest profile={guest.look} name={guest.name} x={spot.x} z={spot.z} />}
       </Suspense>
       {mode === 'edit' && ghost && <Placer />}
     </Canvas>

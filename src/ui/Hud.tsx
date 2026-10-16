@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion } from 'motion/react'
-import { Settings, Shirt, Sparkles, X } from 'lucide-react'
-import { ACTS, DAILY_CAP } from '../game/acts'
+import { Settings, Shirt, Sparkles, Users, X } from 'lucide-react'
+import { ACTS } from '../game/acts'
 import type { Activity } from '../game/catalog'
 import { cancel } from '../game/character'
 import { styleScore, useSave, useSession } from '../game/store'
+import { coupleOf, otherOf, useTogether } from '../lib/together'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 
@@ -21,33 +22,47 @@ function Rolling({ value }: { value: number }) {
 }
 
 /** Hearts, today's progress toward the daily limit, and the room's style score */
-export function Hud({ onSettings, onWardrobe, weatherLabel }: { onSettings: () => void; onWardrobe: () => void; weatherLabel: string | null }) {
+export function Hud({ onSettings, onWardrobe, onPeople, weatherLabel }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; weatherLabel: string | null }) {
   const hearts = useSave((s) => s.hearts)
   const earned = useSave((s) => s.earnedToday)
   const style = useSave((s) => styleScore(s.placed))
-  const pct = Math.min(1, earned / DAILY_CAP)
+  const cap = useSession((s) => s.cap)
+  const pct = Math.min(1, earned / cap)
+  // Living together, the Hearts are the couple's shared jar
+  const living = useSave((s) => s.home)
+  const partner = useTogether((t) => {
+    const c = coupleOf(t)
+    return c && c.id === living ? (t.cards[otherOf(c)]?.name ?? null) : null
+  })
+  const asking = useTogether((t) => t.links.filter((l) => l.status === 'pending' && l.b === t.me).length)
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-5">
       <div className="pointer-events-auto rounded-3xl bg-cream/95 px-4 py-3 shadow-[0_6px_0_rgba(74,52,40,0.12)] ring-2 ring-white">
-        <p className="text-xs font-semibold tracking-wide text-ink-soft uppercase">PocketRoom</p>
+        <p className="max-w-36 truncate text-xs font-semibold tracking-wide text-ink-soft uppercase sm:max-w-44">{partner ? `Jar with ${partner}` : 'PocketRoom'}</p>
         <p className="mt-0.5 flex items-center gap-1.5 text-2xl leading-none font-bold text-heart tabular-nums sm:text-3xl">
           💗 <Rolling value={hearts} />
         </p>
-        <div className="mt-2 w-36 sm:w-44" aria-label={`Today ${earned} of ${DAILY_CAP} Hearts`}>
+        <div className="mt-2 w-36 sm:w-44" aria-label={`Today ${earned} of ${cap} Hearts`}>
           <div className="h-2.5 overflow-hidden rounded-full bg-[#f2dfe3]">
             <motion.div className="h-full origin-left rounded-full bg-heart" initial={false} animate={{ scaleX: pct }} transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }} />
           </div>
           <p className="mt-1 text-[11px] font-medium text-ink-soft">
-            Today {fmt(earned)} / {fmt(DAILY_CAP)}
+            Today {fmt(earned)} / {fmt(cap)}
             {pct >= 1 && ' · full 💗'}
+            {/* On phones the style score lives here, to leave room for the buttons */}
+            <span className="sm:hidden"> · ✨ {fmt(style)}</span>
           </p>
         </div>
       </div>
       <div className="pointer-events-auto flex items-center gap-2">
         {weatherLabel && <span className="hidden rounded-full bg-cream/90 px-3 py-2 text-sm font-medium text-ink-soft shadow-[0_4px_0_rgba(74,52,40,0.1)] sm:block">{weatherLabel}</span>}
-        <span className="flex items-center gap-1.5 rounded-full bg-cream/95 px-3.5 py-2 text-sm font-semibold shadow-[0_4px_0_rgba(74,52,40,0.12)]" title="Room style grows with what you place">
+        <span className="hidden items-center gap-1.5 rounded-full bg-cream/95 px-3.5 py-2 text-sm font-semibold shadow-[0_4px_0_rgba(74,52,40,0.12)] sm:flex" title="Room style grows with what you place">
           <Sparkles className="size-4 text-sun" aria-hidden /> <Rolling value={style} />
         </span>
+        <button type="button" onClick={onPeople} aria-label={asking ? `People, ${asking} waiting` : 'People'} className="chunky relative grid size-11 place-items-center rounded-full bg-cream">
+          <Users className="size-5" />
+          {asking > 0 && <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-heart px-1 text-[11px] leading-5 font-bold text-white">{asking}</span>}
+        </button>
         <button type="button" onClick={onWardrobe} aria-label="Wardrobe" className="chunky grid size-11 place-items-center rounded-full bg-cream">
           <Shirt className="size-5" />
         </button>

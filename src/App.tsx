@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
-import { Check, Paintbrush } from 'lucide-react'
+import { Check, House, Paintbrush } from 'lucide-react'
 import { cancel } from './game/character'
 import { rollDay, setProfile, setSession, useSave, useSession } from './game/store'
 import './lib/auth'
 import { blip } from './lib/sound'
+import { coupleOf, leaveVisit, onNote, otherOf, shareWeather, useTogether } from './lib/together'
 import { skyColors, useWeather } from './lib/weather'
 import Stage from './scene/Stage'
 import Decorate from './ui/Decorate'
 import { DoingPill, Hud } from './ui/Hud'
 import Settings, { PlacePicker } from './ui/Settings'
 import Closet from './ui/Closet'
+import People from './ui/People'
 import Creator from './ui/Creator'
 import Sky from './ui/Sky'
 
@@ -20,6 +22,9 @@ export default function App() {
   const mode = useSession((s) => s.mode)
   const [settings, setSettings] = useState(false)
   const [wardrobe, setWardrobe] = useState(false)
+  const [people, setPeople] = useState(false)
+  const visit = useSession((s) => s.visit)
+  const living = useSave((s) => s.home)
   const [customizing, setCustomizing] = useState(false)
   const profile = useSave((s) => s.profile)
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([])
@@ -43,8 +48,22 @@ export default function App() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2600)
   }, [])
 
+  useEffect(() => onNote(say), [say])
+
+  // Share your weather with your people, for their split sky (a city name only if you picked one)
+  useEffect(() => {
+    shareWeather(weather ? { ...weather, place: place && place.name !== 'Your location' ? place.name.split(',')[0] : null } : null)
+  }, [weather, place])
+
   const sky = skyColors(weather, hour)
   const night = weather ? !weather.isDay : hour < 6 || hour >= 19
+  // With someone else around (visiting, or your partner at home) the sky splits: yours on top, theirs below
+  const theirs = useTogether((t) => {
+    const c = coupleOf(t)
+    const id = visit?.id ?? (c && c.id === living ? otherOf(c) : null)
+    return id ? (t.cards[id]?.weather ?? null) : null
+  })
+  const theirSky = theirs ? skyColors({ kind: theirs.kind, isDay: theirs.isDay, temp: theirs.temp }, hour) : null
   const weatherLabel = weather && place ? `${weather.temp}° ${place.name.split(',')[0]}` : null
 
   const toggleEdit = () => {
@@ -57,12 +76,18 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <div className="relative h-full overflow-hidden">
         <Sky top={sky.top} bottom={sky.bottom} kind={weather?.kind ?? 'clear'} night={night} />
+        {theirs && theirSky && (
+          // The diagonal runs from the bottom-left corner to the top-right one
+          <div className="absolute inset-0" style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }}>
+            <Sky top={theirSky.top} bottom={theirSky.bottom} kind={theirs.kind} night={!theirs.isDay} />
+          </div>
+        )}
         <div className="absolute inset-0">
           <Stage say={say} sky={sky.window} />
         </div>
 
         <div className="pointer-events-none absolute inset-0">
-          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} weatherLabel={weatherLabel} />
+          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} weatherLabel={weatherLabel} />
           {mode === 'play' && <DoingPill />}
 
           {/* Toasts */}
@@ -85,7 +110,16 @@ export default function App() {
           </div>
 
           {/* Bottom: decorate button while playing, the decorating tools while editing */}
-          {mode === 'play' ? (
+          {visit ? (
+            <div className="absolute inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] flex justify-center px-4">
+              <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-cream py-2 pr-2 pl-5 shadow-[0_5px_0_rgba(74,52,40,0.14)] ring-2 ring-white">
+                <p className="min-w-0 truncate font-semibold">Visiting {visit.name}’s room</p>
+                <button type="button" onClick={() => (blip(), leaveVisit())} className="chunky flex shrink-0 items-center gap-2 rounded-full bg-sun px-5 py-3 font-bold text-ink">
+                  <House className="size-5" aria-hidden /> Go home
+                </button>
+              </div>
+            </div>
+          ) : mode === 'play' ? (
             <div className="absolute inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] flex justify-center">
               <button type="button" onClick={toggleEdit} className="chunky pointer-events-auto flex items-center gap-2 rounded-full bg-sun px-7 py-4 text-lg font-bold text-ink">
                 <Paintbrush className="size-5" aria-hidden /> Decorate
@@ -105,6 +139,7 @@ export default function App() {
 
         <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} onCustomize={() => setCustomizing(true)} />
         <Closet open={wardrobe} onClose={() => setWardrobe(false)} say={say} />
+        <People open={people} onClose={() => setPeople(false)} say={say} />
 
         {/* New players make their character first; Settings can reopen this to change it */}
         {(!profile || customizing) && (

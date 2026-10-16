@@ -1,7 +1,7 @@
-import { ACTS, DAILY_CAP, USES_PER_DAY } from './acts'
+import { ACTS, USES_PER_DAY } from './acts'
 import { ITEMS, type Activity } from './catalog'
 import { CELL, FORWARD, ROOM, blockedCells, centerOf, findPath, heightOf, rectOf, standCell, type Placed } from './grid'
-import { earn, getSave, rollDay, setSession, spendUse } from './store'
+import { earn, getPlaced, getSave, getSession, rollDay, setSession, spendUse } from './store'
 import { blip, heart } from '../lib/sound'
 
 export type Pose = 'stand' | 'walk' | 'sit' | 'lie' | 'dance'
@@ -76,7 +76,7 @@ export function cancel() {
   if (me.pose !== 'stand') {
     me.pose = 'stand'
     me.y = 0
-    settle(getSave().placed)
+    settle(getPlaced())
   }
 }
 
@@ -149,7 +149,7 @@ export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
   rollDay()
   const s = getSave()
   const usesLeft = USES_PER_DAY - (s.uses[act] ?? 0)
-  const capLeft = DAILY_CAP - s.earnedToday
+  const capLeft = getSession().cap - s.earnedToday
   const a = ACTS[act]
   const total = usesLeft > 0 && capLeft > 0 ? Math.min(a.hearts, capLeft) : 0
   if (usesLeft <= 0) say(`You’ve done that ${USES_PER_DAY}× today, try something else 💗`)
@@ -217,10 +217,23 @@ export function step(dt: number, now: number, pop: (n: number) => void) {
     me.task = null
     setSession((st) => ({ ...st, doing: null }))
     if (me.pose === 'sit' || me.pose === 'lie') {
-      const placed = getSave().placed
+      const placed = getPlaced()
       me.pose = 'stand'
       me.y = 0
       settle(placed)
     } else me.pose = 'stand'
   }
+}
+
+/** Where someone else's character stands: the free spot nearest the middle of the room */
+export function guestSpot(placed: Placed[]) {
+  const blocked = blockedCells(placed)
+  const want: [number, number] = [12, 9]
+  let best: [number, number] | null = null
+  for (let cx = 1; cx < ROOM.w - 1; cx++)
+    for (let cz = 1; cz < ROOM.d - 1; cz++) {
+      if (blocked.has(`${cx},${cz}`)) continue
+      if (!best || Math.hypot(cx - want[0], cz - want[1]) < Math.hypot(best[0] - want[0], best[1] - want[1])) best = [cx, cz]
+    }
+  return worldOf(best ?? want)
 }
