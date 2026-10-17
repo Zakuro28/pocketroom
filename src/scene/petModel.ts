@@ -1,6 +1,7 @@
-import { Box3, BufferGeometry, Color, ConeGeometry, Group, Mesh, MeshStandardMaterial, OrthographicCamera, TorusGeometry, Vector3, WebGLRenderer, AmbientLight, DirectionalLight, Scene } from 'three'
+import { Box3, BufferGeometry, Color, ConeGeometry, Group, Mesh, MeshStandardMaterial, TorusGeometry, Vector3 } from 'three'
 import { RoundedBoxGeometry } from 'three-stdlib'
 import type { ColorMutation, Species } from '../game/pets'
+import { snapshot } from './thumbs'
 
 /**
  * Pets are built from chunky rounded blocks, like the characters. One builder per body shape (four legs, rodent,
@@ -453,41 +454,7 @@ export function buildPet(look: PetLook): Group {
   return out
 }
 
-// ---- Thumbnails for the reel and the pet cards ----
+// ---- Pictures for the reel and the pet cards ----
 
-let renderer: WebGLRenderer | null = null
-const thumbs = new Map<string, string>()
-
-/** A small picture of a pet (cached), drawn once with a hidden renderer */
-export function petThumb(look: PetLook): string {
-  const key = `${look.sp.id}|${look.coat}|${look.color ?? ''}`
-  const hit = thumbs.get(key)
-  if (hit) return hit
-  try {
-    renderer ??= new WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
-    renderer.setSize(192, 192)
-    renderer.setPixelRatio(1)
-    const scene = new Scene()
-    scene.add(new AmbientLight('#fff4e6', 1.5))
-    const sun = new DirectionalLight('#ffffff', 1.6)
-    sun.position.set(2, 4, 3)
-    scene.add(sun)
-    const pet = buildPet(look)
-    const bounds = new Box3().setFromObject(pet)
-    const size = bounds.getSize(new Vector3())
-    const center = bounds.getCenter(new Vector3())
-    pet.position.sub(new Vector3(center.x, 0, center.z))
-    scene.add(pet)
-    // Three-quarter view from the front right, zoomed to fit
-    const half = Math.max(size.x, size.y, size.z) * 0.72
-    const cam = new OrthographicCamera(-half, half, half, -half, 0.1, 50)
-    cam.position.set(2.2, 1.6 + size.y / 2, 3)
-    cam.lookAt(0, size.y / 2, 0)
-    renderer.render(scene, cam)
-    const url = renderer.domElement.toDataURL('image/png')
-    thumbs.set(key, url)
-    return url
-  } catch {
-    return ''
-  }
-}
+/** A sharp picture of a pet (drawn once, then kept) */
+export const petThumb = (look: PetLook) => snapshot(`pet|${look.sp.id}|${look.coat}|${look.color ?? ''}`, buildPet(look))

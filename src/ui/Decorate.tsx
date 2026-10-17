@@ -6,6 +6,19 @@ import { canPlace, type Rot } from '../game/grid'
 import { buy, buySurface, cancelGhost, commitGhost, getSave, getSession, recolor, rotateGhost, setSave, setSession, startMoving, startPlacing, store, useSave, useSession } from '../game/store'
 import { FLOORS, WALLS, swatch, type Surface } from '../game/surfaces'
 import { Slide } from './Slide'
+import { cachedItemThumb, itemThumb } from '../scene/thumbs'
+
+/** A sharp picture of a piece of furniture in its real colors, drawn from its 3D model */
+function ItemPic({ item, className }: { item: Item; className: string }) {
+  const [src, setSrc] = useState(() => cachedItemThumb(item.model, item.paint) ?? '')
+  useEffect(() => {
+    if (src) return
+    let live = true
+    void itemThumb(item.model, item.paint).then((u) => live && setSrc(u))
+    return () => void (live = false)
+  }, [item, src])
+  return src ? <img src={src} alt="" className={`object-contain ${className}`} draggable={false} /> : <span className={`animate-pulse rounded-xl bg-line/50 ${className}`} aria-hidden />
+}
 import { buyChime, lift, nope, place } from '../lib/sound'
 
 const EASE = [0.23, 1, 0.32, 1] as const
@@ -131,7 +144,7 @@ function Catalog({ onBuy }: { onBuy: (i: Item | Surface) => void }) {
         ) : items.length ? (
           <Slide label="Items" className="gap-2.5 px-4 pt-0.5 pb-2.5">
             {items.map((i) => (
-              <Card key={i.id} name={i.name} onClick={() => pick(i)} thumb={<img src={`/thumbs/${i.model}.png`} alt="" className={`absolute inset-[11%] size-[78%] object-contain ${i.paint ? 'saturate-150' : ''}`} draggable={false} />}>
+              <Card key={i.id} name={i.name} onClick={() => pick(i)} thumb={<ItemPic item={i} className="absolute inset-[6%] size-[88%]" />}>
                 {storage[i.id] ? <span className="mt-0.5 text-xs font-semibold text-mint">Owned ×{storage[i.id]}</span> : <Price price={i.price} hearts={hearts} />}
               </Card>
             ))}
@@ -261,7 +274,7 @@ function BuyWindow({ item, onClose, say }: { item: Item | Surface | null; onClos
             className="w-full max-w-xs rounded-[2rem] bg-cream p-5 text-center shadow-2xl"
           >
             <div className="mx-auto grid size-32 place-items-center rounded-3xl bg-white">
-              {isItem ? <img src={`/thumbs/${item.model}.png`} alt="" className="size-24 object-contain" /> : <span className="size-20 rounded-2xl" style={{ background: item.base }} />}
+              {isItem ? <ItemPic item={item} className="size-28" /> : <span className="size-20 rounded-2xl" style={{ background: item.base }} />}
             </div>
             <h2 className="mt-3 text-xl font-bold">{item.name}</h2>
             <p className="mt-1 text-2xl font-bold text-heart tabular-nums">💗 {fmt(item.price)}</p>

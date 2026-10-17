@@ -216,16 +216,16 @@ export type Pet = {
 }
 
 /** What others need to draw one of your pets in your room */
-export type PetBody = Pick<Pet, 'uid' | 'species' | 'name' | 'coat' | 'color' | 'sizeMut' | 'born'>
-export const bodyOf = ({ uid, species, name, coat, color, sizeMut, born }: Pet): PetBody => ({ uid, species, name, coat, color, sizeMut, born })
+export type PetBody = Pick<Pet, 'uid' | 'species' | 'name' | 'coat' | 'color' | 'sizeMut' | 'born' | 'ivs'>
+export const bodyOf = ({ uid, species, name, coat, color, sizeMut, born, ivs }: Pet): PetBody => ({ uid, species, name, coat, color, sizeMut, born, ivs })
 
 export const speciesOf = (p: Pick<Pet, 'species'>) => SPECIES_BY_ID[p.species] ?? SPECIES[0]
-export const avgIv = (p: Pet) => p.ivs.reduce((a, b) => a + b, 0) / p.ivs.length
-export const bonusOf = (p: Pet) => (p.color ? MUTATIONS[p.color].bonus : 0) + (p.sizeMut ? MUTATIONS[p.sizeMut].bonus : 0)
+export const avgIv = (p: Pick<Pet, 'ivs'>) => p.ivs.reduce((a, b) => a + b, 0) / p.ivs.length
+export const bonusOf = (p: Pick<Pet, 'color' | 'sizeMut'>) => (p.color ? MUTATIONS[p.color].bonus : 0) + (p.sizeMut ? MUTATIONS[p.sizeMut].bonus : 0)
 /** Hearts from one day's feeding */
-export const feedHearts = (p: Pet) => Math.round(avgIv(p) * FEED_MULT * (1 + bonusOf(p)))
+export const feedHearts = (p: Pick<Pet, 'ivs' | 'color' | 'sizeMut'>) => Math.round(avgIv(p) * FEED_MULT * (1 + bonusOf(p)))
 /** Hearts from one day's petting */
-export const petHearts = (p: Pet) => Math.round(avgIv(p) * PET_MULT * (1 + bonusOf(p)))
+export const petHearts = (p: Pick<Pet, 'ivs' | 'color' | 'sizeMut'>) => Math.round(avgIv(p) * PET_MULT * (1 + bonusOf(p)))
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
 /** Days since it arrived */

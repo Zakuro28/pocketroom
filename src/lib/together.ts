@@ -20,7 +20,7 @@ export type SharedWeather = { kind: Sky; isDay: boolean; temp: number; place: st
 export type Card = { id: string; code: string; name: string; birthday: string | null; look: Profile | null; room: RoomView | null; weather: SharedWeather | null; seen_at: string }
 export type Link = { id: string; a: string; b: string; kind: LinkKind; status: 'pending' | 'active' | 'ended'; vote_a: string | null; vote_b: string | null; created_at: string; started_at: string | null; ended_at: string | null }
 type HomeRoom = RoomView & { owned: string[]; storage: Record<string, number> }
-export type Home = { link: string; owner: string; room: HomeRoom; room_by: string | null; tz: string; jar: number; day: string | null; earned: number; chem: number }
+export type Home = { link: string; owner: string; room: HomeRoom; room_by: string | null; tz: string; jar: number; day: string | null; earned: number; chem: number; care?: Record<string, string> }
 
 type State = { me: string | null; mine: Card | null; links: Link[]; cards: Record<string, Card>; home: Home | null; ready: boolean }
 
@@ -155,6 +155,36 @@ function onSave() {
       const { data, error } = await supabase!.rpc('couple_earn', { p_link: link, p_n: delta })
       if (!error && data) applyJar(data as { jar: number; earned: number })
     }
+  })
+}
+
+// ---- Caring for pets together: either partner can feed and pet both partners' pets, once a day per pet ----
+
+export type Care = 'fed' | 'petted'
+
+/** Living in the shared home right now (so pet care and Hearts go through the couple's jar) */
+export const livingTogether = () => !!supabase && !!state.home && getSave().home === state.home.link
+
+/** Has anyone in the couple already fed (or petted) this pet today? */
+export function careDone(kind: Care, pet: string) {
+  const h = state.home
+  if (!h || getSave().home !== h.link) return false
+  return h.care?.[`${kind}:${pet}`] === dayIn(h.tz)
+}
+
+/** Feed or pet a pet in the shared home: the server checks it's the first time today and adds the Hearts to the jar */
+export function coupleCare(kind: Care, pet: string, n: number) {
+  const h = state.home
+  if (!supabase || !h) return
+  const link = h.link
+  // Show it as done straight away; the server's answer follows
+  set({ home: { ...h, care: { ...h.care, [`${kind}:${pet}`]: dayIn(h.tz) } } })
+  queue = queue.then(async () => {
+    const { data, error } = await supabase!.rpc('couple_care', { p_link: link, p_pet: pet, p_kind: kind, p_n: n })
+    if (error) return note(errorText(error))
+    const r = data as { jar: number; earned: number; care: Record<string, string> }
+    if (state.home?.link === link) set({ home: { ...state.home, care: r.care } })
+    applyJar(r)
   })
 }
 

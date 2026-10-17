@@ -1,7 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, Check, Gift, Home, Package, X } from 'lucide-react'
-import { adoptAway, feedPet, fosterPets, movePet, petPet, renamePet, rollDelivery, roomPets, swapPets, type Roll } from '../game/petActions'
+import { adoptAway, feedPet, fosterPets, isDone, movePet, petPet, renamePet, rollDelivery, roomPets, swapPets, type Roll } from '../game/petActions'
+import { useTogether } from '../lib/together'
 import {
   EVENTS,
   FOSTER_SLOTS,
@@ -141,7 +142,12 @@ function Reel({ roll, onDone }: { roll: Roll; onDone: () => void }) {
 
 function Mutations({ p }: { p: Pet }) {
   const list = [p.color, p.sizeMut].filter(Boolean) as (keyof typeof MUTATIONS)[]
-  if (!list.length) return null
+  if (!list.length)
+    return (
+      <div className="flex justify-center">
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-ink-soft ring-1 ring-line">🧬 Mutation: Normal</span>
+      </div>
+    )
   return (
     <div className="flex flex-wrap justify-center gap-1.5">
       {list.map((m) => (
@@ -419,7 +425,8 @@ export function AdoptPicker({ say }: { say: (m: string) => void }) {
 // ---- Your pets: room and foster ----
 
 function PetTile({ p, onClick }: { p: Pet; onClick: () => void }) {
-  const fed = p.place === 'room' && p.fed === today()
+  useTogether((t) => t.home?.care)
+  const fed = p.place === 'room' && isDone(p, 'fed')
   const tier = speciesOf(p).tier
   return (
     <button type="button" onClick={onClick} className="chunky relative flex flex-col items-center rounded-2xl bg-white p-2 text-center">
@@ -429,7 +436,7 @@ function PetTile({ p, onClick }: { p: Pet; onClick: () => void }) {
       <span className="text-[11px] font-bold text-ink tabular-nums">IV {Math.round(avgIv(p))}</span>
       <span className="text-[11px] font-semibold text-ink-soft">
         {(p.color || p.sizeMut) && '🧬 '}
-        {p.place === 'room' ? (fed && p.petted === today() ? 'Fed & petted ✓' : 'Feed & pet today') : TIER_INFO[tier].label}
+        {p.place === 'room' ? (fed && isDone(p, 'petted') ? 'Fed & petted ✓' : 'Feed & pet today') : TIER_INFO[tier].label}
       </span>
     </button>
   )
@@ -438,9 +445,10 @@ function PetTile({ p, onClick }: { p: Pet; onClick: () => void }) {
 function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: string) => void }) {
   const pets = useSave((s) => s.pets)
   const sp = speciesOf(p)
-  const d = today()
-  const fed = p.fed === d
-  const petted = p.petted === d
+  // Done today, by you or (living together) your partner
+  useTogether((t) => t.home?.care)
+  const fed = isDone(p, 'fed')
+  const petted = isDone(p, 'petted')
   const [confirm, setConfirm] = useState<string | null>(null)
   const [swapping, setSwapping] = useState(false)
   const room = roomPets(pets)

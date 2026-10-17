@@ -1,4 +1,4 @@
--- PocketRoom stage 6: deleting your account, and no more daily Hearts limit for couples.
+-- PocketRoom stage 6: deleting your account, no more daily Hearts limit for couples, and caring for each other's pets.
 -- Paste this whole file into Supabase > SQL Editor and run it once. Safe to run again.
 --
 -- Deletes the signed-in player's account and everything that belongs to it: the saved game (with pets),
@@ -34,3 +34,29 @@ begin
   update homes set jar = jar + got, earned = h.earned + got, day = d, updated_at = now() where link = p_link;
   return json_build_object('got', got, 'jar', h.jar + got, 'earned', h.earned + got);
 end $$;
+
+-- Living together: either partner can feed and pet both partners' pets, once a day per pet in all.
+-- `care` remembers the day each pet was last fed ("fed:<pet>") and petted ("petted:<pet>"), in the home's time zone.
+alter table public.homes add column if not exists care jsonb not null default '{}';
+
+create or replace function public.couple_care(p_link uuid, p_pet text, p_kind text, p_n int) returns json language plpgsql security definer set search_path = public as $$
+declare
+  h homes;
+  d date;
+  k text;
+begin
+  if not public.in_home(p_link, true) then raise exception 'You''re not in this couple'; end if;
+  if p_kind not in ('fed', 'petted') then raise exception 'Feed or pet'; end if;
+  select * into h from homes where link = p_link for update;
+  if not found then raise exception 'Pick a home first'; end if;
+  d := public.home_day(h);
+  k := p_kind || ':' || p_pet;
+  if (h.care ->> k) = d::text then
+    raise exception '%', case when p_kind = 'fed' then 'Already fed today' else 'Already petted today' end;
+  end if;
+  update homes set care = jsonb_set(coalesce(care, '{}'), array[k], to_jsonb(d::text)), jar = jar + greatest(0, least(p_n, 1500)), updated_at = now()
+  where link = p_link returning * into h;
+  return json_build_object('jar', h.jar, 'earned', h.earned, 'care', h.care);
+end $$;
+
+grant execute on function public.couple_care(uuid, text, text, int) to authenticated;

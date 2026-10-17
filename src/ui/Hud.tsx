@@ -4,9 +4,9 @@ import { Check, ChevronDown, PawPrint, Settings, Shirt, Sparkles, Users, X } fro
 import { ACTS, REWARD_MULT, USES_PER_DAY } from '../game/acts'
 import { ITEMS, type Activity } from '../game/catalog'
 import { cancel, goUse } from '../game/character'
-import { getSession, styleScore, today, usePlaced, useSave, useSession } from '../game/store'
-import { feedPet, petPet } from '../game/petActions'
-import { feedHearts, petHearts } from '../game/pets'
+import { getSession, styleScore, usePlaced, useSave, useSession } from '../game/store'
+import { careForPartnerPet, feedPet, isDone, petPet } from '../game/petActions'
+import { feedHearts, petHearts, type PetBody } from '../game/pets'
 import { coupleOf, otherOf, useTogether } from '../lib/together'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -94,6 +94,9 @@ function roomActivities(acts: (Activity | undefined)[]) {
   return (Object.keys(ACTS) as Activity[]).filter((a) => have.has(a))
 }
 
+// One shared empty list, so the store doesn't hand React a new array every time (that would re-render forever)
+const NO_PETS: PetBody[] = []
+
 /** One thing to do today: an activity in the room, or feeding a room pet */
 type Todo = { key: string; emoji: string; label: string; hearts: number; done: boolean; run: () => void }
 
@@ -103,7 +106,13 @@ function useToday(say: (m: string) => void, onDone?: () => void) {
   const uses = useSave((s) => s.uses)
   const pets = useSave((s) => s.pets)
   const acts = useMemo(() => roomActivities(placed.map((p) => ITEMS[p.id]?.act)), [placed])
-  const day = today()
+  // Living together: your partner's pets are on the list too, and what either of you did shows for both
+  const living = useSave((s) => s.home)
+  useTogether((t) => t.home?.care)
+  const partnerPets = useTogether((t) => {
+    const c = coupleOf(t)
+    return (c && living === c.id ? t.cards[otherOf(c)]?.room?.pets : undefined) ?? NO_PETS
+  })
   const list: Todo[] = [
     ...acts.map((a) => ({
       key: a,
@@ -120,33 +129,31 @@ function useToday(say: (m: string) => void, onDone?: () => void) {
         onDone?.()
       },
     })),
-    // Each room pet: feed it, and (separately) pet it
-    ...pets
-      .filter((p) => p.place === 'room')
-      .flatMap((p) => [
-        {
-          key: `feed-${p.uid}`,
-          emoji: '🍖',
-          label: `Feed ${p.name}`,
-          hearts: feedHearts(p),
-          done: p.fed === day,
-          run: () => {
-            const n = feedPet(p.uid)
-            if (n) say(`${p.name} enjoyed that! +${n} 💗`)
-          },
+    // Each room pet (yours, and your partner's when you live together): feed it, and separately pet it
+    ...[...pets.filter((p) => p.place === 'room').map((p) => ({ p, own: true })), ...partnerPets.map((p) => ({ p, own: false }))].flatMap(({ p, own }) => [
+      {
+        key: `feed-${p.uid}`,
+        emoji: '🍖',
+        label: `Feed ${p.name}${own ? '' : ' 💞'}`,
+        hearts: feedHearts(p),
+        done: isDone(p, 'fed'),
+        run: () => {
+          const n = own ? feedPet(p.uid) : careForPartnerPet('fed', p)
+          if (n) say(`${p.name} enjoyed that! +${n} 💗`)
         },
-        {
-          key: `pet-${p.uid}`,
-          emoji: '🫶',
-          label: `Pet ${p.name}`,
-          hearts: petHearts(p),
-          done: p.petted === day,
-          run: () => {
-            const n = petPet(p.uid)
-            if (n) say(`${p.name} loved the pets! +${n} 💗`)
-          },
+      },
+      {
+        key: `pet-${p.uid}`,
+        emoji: '🫶',
+        label: `Pet ${p.name}${own ? '' : ' 💞'}`,
+        hearts: petHearts(p),
+        done: isDone(p, 'petted'),
+        run: () => {
+          const n = own ? petPet(p.uid) : careForPartnerPet('petted', p)
+          if (n) say(`${p.name} loved the pets! +${n} 💗`)
         },
-      ]),
+      },
+    ]),
   ]
   return { list, done: list.filter((t) => t.done).length }
 }

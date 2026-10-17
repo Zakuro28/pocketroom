@@ -1,7 +1,8 @@
 import { memo, useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
-import { Box3, Color, Mesh, MeshStandardMaterial, type Group, type Object3D } from 'three'
+import type { Group } from 'three'
+import { paintModel } from './paint'
 import { ITEMS } from '../game/catalog'
 import { CELL, centerOf, footprint, heightOf, rectOf, wallHeight, type Placed } from '../game/grid'
 import { SIZES } from '../game/sizes'
@@ -11,37 +12,7 @@ const url = (model: string) => `/models/${model}.glb`
 /** A furniture model, recolored for special versions or the player's fabric choice, centered so it turns on the spot */
 function useFurniture(model: string, paint?: Record<string, string>, fabric?: string, ghost = false) {
   const { scene } = useGLTF(url(model))
-  return useMemo(() => {
-    const obj = scene.clone(true)
-    const colors: Record<string, string> = { ...paint }
-    if (fabric) {
-      colors.carpet = fabric
-      colors.carpetDarker = `#${new Color(fabric).multiplyScalar(0.7).getHexString()}`
-      colors.carpetBlue = fabric
-    }
-    obj.traverse((o: Object3D) => {
-      if (!(o instanceof Mesh)) return
-      o.castShadow = !ghost
-      o.receiveShadow = !ghost
-      const mats = Array.isArray(o.material) ? o.material : [o.material]
-      const next = mats.map((m: MeshStandardMaterial) => {
-        const color = colors[m.name]
-        if (!color && !ghost) return m
-        const c = m.clone()
-        if (color) c.color.set(color)
-        if (ghost) {
-          c.transparent = true
-          c.opacity = 0.55
-          c.depthWrite = false
-        }
-        return c
-      })
-      o.material = Array.isArray(o.material) ? next : next[0]
-    })
-    const box = new Box3().setFromObject(obj)
-    obj.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2)
-    return obj
-  }, [scene, paint, fabric, ghost])
+  return useMemo(() => paintModel(scene, paint, fabric, ghost), [scene, paint, fabric, ghost])
 }
 
 /** Where an item stands in the world and which way it faces */

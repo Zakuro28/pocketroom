@@ -1,4 +1,4 @@
-import { coupleOf, getTogether } from '../lib/together'
+import { careDone, coupleCare, coupleOf, getTogether, livingTogether, type Care } from '../lib/together'
 import {
   FOSTER_SLOTS,
   ROOM_SLOTS,
@@ -14,6 +14,7 @@ import {
   randomSpecies,
   specialTier,
   type Pet,
+  type PetBody,
   type Tier,
 } from './pets'
 import { BIRTHDAY_GIFT } from './acts'
@@ -103,29 +104,43 @@ export function adoptAway(uidToGo: string) {
 export const roomPets = (pets: Pet[]) => pets.filter((p) => p.place === 'room')
 export const fosterPets = (pets: Pet[]) => pets.filter((p) => p.place === 'foster')
 
-/** Feed a pet in the room: once a day, for its own Hearts */
-export function feedPet(uidToFeed: string) {
-  const s = getSave()
-  const p = s.pets.find((x) => x.uid === uidToFeed)
+/** Has this pet been fed (or petted) today, by you or (living together) your partner? */
+export function isDone(p: PetBody & { fed?: string; petted?: string }, kind: Care) {
+  return (kind === 'fed' ? p.fed : p.petted) === today() || careDone(kind, p.uid)
+}
+
+/**
+ * Feed or pet a pet, once a day each. Living together, it goes through the couple's jar (and your partner can do
+ * it too, for both of your pets); on your own the Hearts land in your Hearts. Returns how many Hearts it gives.
+ */
+function care(kind: Care, p: PetBody & { fed?: string; petted?: string }, own: boolean) {
+  if (isDone(p, kind)) return 0
+  const together = livingTogether()
+  if (!own && !together) return 0
+  const n = kind === 'fed' ? feedHearts(p) : petHearts(p)
   const d = today()
-  if (!p || p.place !== 'room' || p.fed === d) return 0
-  const n = feedHearts(p)
-  setSave((x) => ({ ...x, pets: x.pets.map((q) => (q.uid === uidToFeed ? { ...q, fed: d } : q)) }))
-  addBonus(n)
+  if (own) setSave((x) => ({ ...x, pets: x.pets.map((q) => (q.uid === p.uid ? { ...q, [kind]: d } : q)) }))
+  if (together) coupleCare(kind, p.uid, n)
+  else addBonus(n)
   return n
 }
 
-/** Pet a pet in the room: once a day, separate from feeding, for its own Hearts */
-export function petPet(uidToPet: string) {
-  const s = getSave()
-  const p = s.pets.find((x) => x.uid === uidToPet)
-  const d = today()
-  if (!p || p.place !== 'room' || p.petted === d) return 0
-  const n = petHearts(p)
-  setSave((x) => ({ ...x, pets: x.pets.map((q) => (q.uid === uidToPet ? { ...q, petted: d } : q)) }))
-  addBonus(n)
-  return n
+const roomPet = (uid: string) => getSave().pets.find((x) => x.uid === uid && x.place === 'room')
+
+/** Feed one of your room pets */
+export function feedPet(uidToFeed: string) {
+  const p = roomPet(uidToFeed)
+  return p ? care('fed', p, true) : 0
 }
+
+/** Pet one of your room pets (separate from feeding) */
+export function petPet(uidToPet: string) {
+  const p = roomPet(uidToPet)
+  return p ? care('petted', p, true) : 0
+}
+
+/** Living together: feed or pet one of your partner's pets */
+export const careForPartnerPet = (kind: Care, p: PetBody) => care(kind, p, false)
 
 /** Move a pet between the room and foster care (if there's space). Returns an error message, or null. */
 export function movePet(uidToMove: string, to: 'room' | 'foster') {
