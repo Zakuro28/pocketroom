@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, Check, Gift, Home, Package, X } from 'lucide-react'
 import { adoptAway, feedPet, fosterPets, isDone, movePet, petPet, renamePet, rollDelivery, roomPets, swapPets, type Roll } from '../game/petActions'
@@ -25,7 +25,7 @@ import {
   type Species,
   type Tier,
 } from '../game/pets'
-import { today, useSave, type Delivery } from '../game/store'
+import { now, today, useSave, type Delivery } from '../game/store'
 import { blip, fanfare, heart, nope, tick } from '../lib/sound'
 import { canSignIn, signInWithGoogle, useUser } from '../lib/auth'
 import { petThumb } from '../scene/petModel'
@@ -52,6 +52,33 @@ function deliveryOdds(d: Delivery) {
   if (d.kind === 'seasonal') return `One of ${speciesIn('seasonal', d.event).map((s) => s.name).join(' or ')}`
   if (d.kind === 'daily') return 'Any pet, Common to Divine'
   return '75% Legendary · 25% Mythical'
+}
+
+/** Time left until the next daily pet: it arrives at midnight, by the game's clock */
+function NextPet() {
+  const [left, setLeft] = useState(() => untilMidnight())
+  useEffect(() => {
+    const id = setInterval(() => setLeft(untilMidnight()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const h = Math.floor(left / 3600)
+  const m = Math.floor((left % 3600) / 60)
+  const s = left % 60
+  return (
+    <div className="mt-4 rounded-2xl bg-white p-4 text-center">
+      <p className="text-xs font-bold tracking-wide text-ink-soft uppercase">Next pet arrives in</p>
+      <p className="mt-1 text-3xl font-bold text-heart tabular-nums">
+        {h}h {String(m).padStart(2, '0')}m {String(s).padStart(2, '0')}s
+      </p>
+      <p className="mt-1 text-xs text-ink-soft">A new pet comes to your door every day at midnight.</p>
+    </div>
+  )
+}
+
+function untilMidnight() {
+  const t = new Date(now())
+  const next = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1)
+  return Math.max(0, Math.ceil((next.getTime() - t.getTime()) / 1000))
 }
 
 // ---- The reel ----
@@ -298,8 +325,9 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
                     </button>
                   </>
                 ) : (
-                  <p className="mt-1 text-sm text-ink-soft">{deliveries.length ? 'Roll now, or keep it for later. It waits at the door.' : 'A new pet comes every day. Check back tomorrow!'}</p>
+                  <p className="mt-1 text-sm text-ink-soft">{deliveries.length ? 'Roll now, or keep it for later. It waits at the door.' : 'Your pet for today is already home. Here’s when the next one comes:'}</p>
                 )}
+                {!deliveries.length && <NextPet />}
                 <ul className={`mt-4 space-y-2 ${guest ? 'hidden' : ''}`}>
                   {deliveries.map((d) => (
                     <li key={d.id} className="flex items-center gap-3 rounded-2xl bg-white p-3">

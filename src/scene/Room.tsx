@@ -10,7 +10,7 @@ const T = 0.12 // wall thickness
 const BASE = 0.28 // the slab under the floor, seen at the front edges
 
 /** The studio shell: a thick floor slab, two back walls with wallpaper, two windows and the front door */
-export default function Room({ sky, onFloorTap }: { sky: string; onFloorTap: (x: number, z: number) => void }) {
+export default function Room({ sky, onFloorTap, onDoor }: { sky: string; onFloorTap: (x: number, z: number) => void; onDoor?: () => void }) {
   const floorId = useFloor()
   const wallId = useWall()
   const floorTex = useMemo(() => {
@@ -108,8 +108,17 @@ export default function Room({ sky, onFloorTap }: { sky: string; onFloorTap: (x:
         )
       })}
 
-      {/* Front door on the left wall */}
-      <group position={[0.02, 0, ((DOOR.from + DOOR.to) / 2) * CELL]}>
+      {/* Front door on the left wall: tap it to check on pet deliveries */}
+      <group
+        position={[0.02, 0, ((DOOR.from + DOOR.to) / 2) * CELL]}
+        onClick={(e) => {
+          if (!onDoor) return
+          e.stopPropagation()
+          onDoor()
+        }}
+        onPointerOver={() => onDoor && (document.body.style.cursor = 'pointer')}
+        onPointerOut={() => (document.body.style.cursor = '')}
+      >
         <mesh position-y={0.62}>
           <boxGeometry args={[0.04, 1.24, (DOOR.to - DOOR.from) * CELL * 0.62 + 0.12]} />
           <meshStandardMaterial color="#fbf6ee" />

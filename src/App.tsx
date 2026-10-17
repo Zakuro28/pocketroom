@@ -16,7 +16,6 @@ import People from './ui/People'
 import Creator from './ui/Creator'
 import Sky from './ui/Sky'
 import { TourInvites, TourPanel } from './ui/Tour'
-import { ZoomButtons } from './ui/ZoomButtons'
 import { AdoptPicker, DeliveryFlow, PetsPanel } from './ui/PetUI'
 import { checkBirthdayGift, checkDeliveries } from './game/petActions'
 import { useTour } from './lib/tour'
@@ -123,7 +122,6 @@ export default function App() {
         <div className="pointer-events-none absolute inset-0">
           <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} weatherLabel={weatherLabel} say={say} />
           {mode === 'play' && <DoingPill />}
-          {mode === 'play' && <ZoomButtons />}
           <TourInvites />
 
           {/* Toasts */}

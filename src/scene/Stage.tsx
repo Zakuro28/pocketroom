@@ -245,6 +245,7 @@ export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: stri
       <Suspense fallback={null}>
         <Room
           sky={sky}
+          onDoor={visit || mode !== 'play' ? undefined : () => !justDragged() && onDelivery()}
           onFloorTap={(x, z) => {
             if (justDragged()) return
             const st = getSession()
