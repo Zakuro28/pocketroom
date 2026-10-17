@@ -4,7 +4,9 @@ import { Check, ChevronDown, PawPrint, Settings, Shirt, Sparkles, Users, X } fro
 import { ACTS, REWARD_MULT, USES_PER_DAY } from '../game/acts'
 import { ITEMS, type Activity } from '../game/catalog'
 import { cancel, goUse } from '../game/character'
-import { getSession, styleScore, usePlaced, useSave, useSession } from '../game/store'
+import { getSession, styleScore, today, usePlaced, useSave, useSession } from '../game/store'
+import { feedPet, petPet } from '../game/petActions'
+import { feedHearts, petHearts } from '../game/pets'
 import { coupleOf, otherOf, useTogether } from '../lib/together'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -25,10 +27,10 @@ function Rolling({ value }: { value: number }) {
 export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel, say }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; onPets: () => void; weatherLabel: string | null; say: (m: string) => void }) {
   const waiting = useSave((s) => s.deliveries.length)
   const hearts = useSave((s) => s.hearts)
-  const earned = useSave((s) => s.earnedToday)
   const style = useSave((s) => styleScore(s.placed))
-  const cap = useSession((s) => s.cap)
-  const pct = Math.min(1, earned / cap)
+  // Today's list: the room's activities and feeding room pets, and how many are done
+  const { list: todos, done } = useToday(say)
+  const pct = todos.length ? done / todos.length : 0
   // Living together, the Hearts are the couple's shared jar
   const living = useSave((s) => s.home)
   const partner = useTogether((t) => {
@@ -45,21 +47,21 @@ export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel, sa
           💗 <Rolling value={hearts} />
         </p>
         {/* The Today bar opens a checklist of today's activities */}
-        <button type="button" onClick={() => setToday((o) => !o)} aria-expanded={today} aria-label={`Today ${earned} of ${cap} Hearts. Show today's activities`} className="mt-2 block w-32 text-left sm:w-44">
+        <button type="button" onClick={() => setToday((o) => !o)} aria-expanded={today} aria-label={`Today ${done} of ${todos.length} done. Show the list`} className="mt-2 block w-32 text-left sm:w-44">
           <div className="h-2.5 overflow-hidden rounded-full bg-[#f2dfe3]">
             <motion.div className="h-full origin-left rounded-full bg-heart" initial={false} animate={{ scaleX: pct }} transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }} />
           </div>
           <p className="mt-1 flex items-center gap-0.5 text-[11px] font-medium text-ink-soft">
             <span className="min-w-0 truncate">
-              Today {fmt(earned)} / {fmt(cap)}
-              {pct >= 1 && ' · full 💗'}
+              Today {done} / {todos.length} done
+              {todos.length > 0 && pct >= 1 && ' 🎉'}
               {/* On phones the style score lives here, to leave room for the buttons */}
               <span className="sm:hidden"> · ✨ {fmt(style)}</span>
             </span>
             <ChevronDown className={`size-3.5 shrink-0 transition-transform duration-200 ${today ? 'rotate-180' : ''}`} aria-hidden />
           </p>
         </button>
-        <AnimatePresence>{today && <TodayList onClose={() => setToday(false)} full={pct >= 1} say={say} />}</AnimatePresence>
+        <AnimatePresence>{today && <TodayList onClose={() => setToday(false)} say={say} />}</AnimatePresence>
       </div>
       <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
         {weatherLabel && <span className="hidden rounded-full bg-cream/90 px-3 py-2 text-sm font-medium text-ink-soft shadow-[0_4px_0_rgba(74,52,40,0.1)] sm:block">{weatherLabel}</span>}
@@ -92,20 +94,66 @@ function roomActivities(acts: (Activity | undefined)[]) {
   return (Object.keys(ACTS) as Activity[]).filter((a) => have.has(a))
 }
 
-/** Today's checklist: what you've done and what's left, with the Hearts each still pays */
-function TodayList({ onClose, full, say }: { onClose: () => void; full: boolean; say: (m: string) => void }) {
+/** One thing to do today: an activity in the room, or feeding a room pet */
+type Todo = { key: string; emoji: string; label: string; hearts: number; done: boolean; run: () => void }
+
+/** Today's list: the room's activities plus feeding each room pet, and how many are done */
+function useToday(say: (m: string) => void, onDone?: () => void) {
   const placed = usePlaced()
   const uses = useSave((s) => s.uses)
-  const list = useMemo(() => roomActivities(placed.map((p) => ITEMS[p.id]?.act)), [placed])
-  const done = list.filter((a) => (uses[a] ?? 0) >= USES_PER_DAY).length
-  // Tapping an activity walks your character over to do it (TV time happens on a seat facing the TV)
-  const go = (a: Activity) => {
-    if (getSession().mode !== 'play') return say('Finish decorating first ✨')
-    const item = placed.find((p) => ITEMS[p.id]?.act === a) ?? (a === 'tv' ? placed.find((p) => ITEMS[p.id]?.act === 'sit') : undefined)
-    if (!item) return
-    goUse(item, placed, say)
-    onClose()
-  }
+  const pets = useSave((s) => s.pets)
+  const acts = useMemo(() => roomActivities(placed.map((p) => ITEMS[p.id]?.act)), [placed])
+  const day = today()
+  const list: Todo[] = [
+    ...acts.map((a) => ({
+      key: a,
+      emoji: ACTS[a].emoji,
+      label: ACTS[a].label,
+      hearts: ACTS[a].hearts * REWARD_MULT,
+      done: (uses[a] ?? 0) >= USES_PER_DAY,
+      // Walk over and do it (TV time happens on a seat facing the TV)
+      run: () => {
+        if (getSession().mode !== 'play') return say('Finish decorating first ✨')
+        const item = placed.find((p) => ITEMS[p.id]?.act === a) ?? (a === 'tv' ? placed.find((p) => ITEMS[p.id]?.act === 'sit') : undefined)
+        if (!item) return
+        goUse(item, placed, say)
+        onDone?.()
+      },
+    })),
+    // Each room pet: feed it, and (separately) pet it
+    ...pets
+      .filter((p) => p.place === 'room')
+      .flatMap((p) => [
+        {
+          key: `feed-${p.uid}`,
+          emoji: '🍖',
+          label: `Feed ${p.name}`,
+          hearts: feedHearts(p),
+          done: p.fed === day,
+          run: () => {
+            const n = feedPet(p.uid)
+            if (n) say(`${p.name} enjoyed that! +${n} 💗`)
+          },
+        },
+        {
+          key: `pet-${p.uid}`,
+          emoji: '🫶',
+          label: `Pet ${p.name}`,
+          hearts: petHearts(p),
+          done: p.petted === day,
+          run: () => {
+            const n = petPet(p.uid)
+            if (n) say(`${p.name} loved the pets! +${n} 💗`)
+          },
+        },
+      ]),
+  ]
+  return { list, done: list.filter((t) => t.done).length }
+}
+
+/** Today's checklist: what you've done and what's left, with the Hearts each pays */
+function TodayList({ onClose, say }: { onClose: () => void; say: (m: string) => void }) {
+  const { list, done } = useToday(say, onClose)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -120,7 +168,7 @@ function TodayList({ onClose, full, say }: { onClose: () => void; full: boolean;
       style={{ transformOrigin: 'top left' }}
       className="absolute top-full left-0 z-20 mt-2 w-64 rounded-3xl bg-cream p-3 shadow-[0_8px_24px_rgba(74,52,40,0.2)] ring-2 ring-white"
       role="region"
-      aria-label="Today's activities"
+      aria-label="Today's list"
     >
       <div className="flex items-baseline justify-between px-1">
         <p className="font-bold">Today</p>
@@ -128,34 +176,31 @@ function TodayList({ onClose, full, say }: { onClose: () => void; full: boolean;
           {done} / {list.length} done
         </p>
       </div>
-      <p className="px-1 pb-2 text-[11px] text-ink-soft">{full ? 'Your hearts are full today 💗 Come back tomorrow!' : `Tap one to go do it. Each pays once a day, ×${REWARD_MULT} Hearts.`}</p>
+      <p className="px-1 pb-2 text-[11px] text-ink-soft">{done === list.length && list.length ? 'All done for today 🎉 New ones tomorrow!' : 'Tap one to do it.'}</p>
       <ul className="max-h-[45dvh] space-y-1 overflow-y-auto">
-        {list.map((a) => {
-          const finished = (uses[a] ?? 0) >= USES_PER_DAY
-          return (
-            <li key={a}>
-              <button
-                type="button"
-                onClick={() => go(a)}
-                disabled={finished}
-                aria-label={finished ? `${ACTS[a].label}, done today` : `${ACTS[a].label}, go do it for ${ACTS[a].hearts * REWARD_MULT} Hearts`}
-                className={`flex w-full items-center gap-2.5 rounded-2xl px-2.5 py-1.5 text-left transition-transform duration-150 enabled:active:scale-[0.98] ${finished ? 'bg-[#e6f7ee]' : 'bg-white hover:bg-[#fff3f6]'}`}
-              >
+        {list.map((t) => (
+          <li key={t.key}>
+            <button
+              type="button"
+              onClick={t.run}
+              disabled={t.done}
+              aria-label={t.done ? `${t.label}, done today` : `${t.label} for ${t.hearts} Hearts`}
+              className={`flex w-full items-center gap-2.5 rounded-2xl px-2.5 py-1.5 text-left transition-transform duration-150 enabled:active:scale-[0.98] ${t.done ? 'bg-[#e6f7ee]' : 'bg-white hover:bg-[#fff3f6]'}`}
+            >
               <span className="text-lg" aria-hidden>
-                {ACTS[a].emoji}
+                {t.emoji}
               </span>
-              <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${finished ? 'text-ink-soft line-through decoration-2' : ''}`}>{ACTS[a].label}</span>
-              {finished ? (
+              <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${t.done ? 'text-ink-soft line-through decoration-2' : ''}`}>{t.label}</span>
+              {t.done ? (
                 <span className="flex items-center gap-1 text-xs font-bold text-mint">
                   <Check className="size-4" strokeWidth={3} aria-hidden /> Done
                 </span>
               ) : (
-                <span className="text-xs font-bold text-heart tabular-nums">+{ACTS[a].hearts * REWARD_MULT}</span>
+                <span className="text-xs font-bold text-heart tabular-nums">+{t.hearts}</span>
               )}
-              </button>
-            </li>
-          )
-        })}
+            </button>
+          </li>
+        ))}
       </ul>
       {!list.length && <p className="px-1 py-2 text-sm text-ink-soft">No furniture to use yet. Decorate to add some!</p>}
       <p className="px-1 pt-2 text-[11px] text-ink-soft">Buy more furniture for more ways to earn.</p>

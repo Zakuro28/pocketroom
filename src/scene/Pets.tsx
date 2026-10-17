@@ -119,11 +119,10 @@ function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>;
           <meshBasicMaterial color="#ffd86b" transparent opacity={0.4} depthWrite={false} />
         </mesh>
       )}
-      {hover && (
-        <Html position={[0, h + 0.14, 0]} center zIndexRange={[12, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="rounded-full bg-cream/90 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap text-ink shadow">{pet.name}</div>
-        </Html>
-      )}
+      {/* Name on hover: always in the page, just hidden, so hovering doesn't add and remove a 3D label */}
+      <Html position={[0, h + 0.14, 0]} center zIndexRange={[12, 0]} style={{ pointerEvents: 'none', opacity: hover ? 1 : 0, transition: 'opacity 150ms ease-out' }}>
+        <div className="rounded-full bg-cream/90 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap text-ink shadow">{pet.name}</div>
+      </Html>
     </group>
   )
 }

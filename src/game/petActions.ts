@@ -6,6 +6,7 @@ import {
   dailyTier,
   eventToday,
   feedHearts,
+  petHearts,
   isBirthday,
   isMonthsary,
   makePet,
@@ -102,7 +103,7 @@ export function adoptAway(uidToGo: string) {
 export const roomPets = (pets: Pet[]) => pets.filter((p) => p.place === 'room')
 export const fosterPets = (pets: Pet[]) => pets.filter((p) => p.place === 'foster')
 
-/** Feed a pet in the room: once a day, its Hearts land on top of the daily cap */
+/** Feed a pet in the room: once a day, for its own Hearts */
 export function feedPet(uidToFeed: string) {
   const s = getSave()
   const p = s.pets.find((x) => x.uid === uidToFeed)
@@ -110,6 +111,18 @@ export function feedPet(uidToFeed: string) {
   if (!p || p.place !== 'room' || p.fed === d) return 0
   const n = feedHearts(p)
   setSave((x) => ({ ...x, pets: x.pets.map((q) => (q.uid === uidToFeed ? { ...q, fed: d } : q)) }))
+  addBonus(n)
+  return n
+}
+
+/** Pet a pet in the room: once a day, separate from feeding, for its own Hearts */
+export function petPet(uidToPet: string) {
+  const s = getSave()
+  const p = s.pets.find((x) => x.uid === uidToPet)
+  const d = today()
+  if (!p || p.place !== 'room' || p.petted === d) return 0
+  const n = petHearts(p)
+  setSave((x) => ({ ...x, pets: x.pets.map((q) => (q.uid === uidToPet ? { ...q, petted: d } : q)) }))
   addBonus(n)
   return n
 }

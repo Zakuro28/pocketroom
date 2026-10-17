@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, Check, Gift, Home, Package, X } from 'lucide-react'
-import { adoptAway, feedPet, fosterPets, movePet, renamePet, rollDelivery, roomPets, swapPets, type Roll } from '../game/petActions'
+import { adoptAway, feedPet, fosterPets, movePet, petPet, renamePet, rollDelivery, roomPets, swapPets, type Roll } from '../game/petActions'
 import {
   EVENTS,
   FOSTER_SLOTS,
@@ -13,8 +13,8 @@ import {
   TIER_INFO,
   ageDays,
   avgIv,
-  bonusOf,
   feedHearts,
+  petHearts,
   randomSpecies,
   randomTier,
   specialTier,
@@ -429,7 +429,7 @@ function PetTile({ p, onClick }: { p: Pet; onClick: () => void }) {
       <span className="text-[11px] font-bold text-ink tabular-nums">IV {Math.round(avgIv(p))}</span>
       <span className="text-[11px] font-semibold text-ink-soft">
         {(p.color || p.sizeMut) && '🧬 '}
-        {p.place === 'room' ? (fed ? 'Fed ✓' : `Feed +${feedHearts(p)}`) : TIER_INFO[tier].label}
+        {p.place === 'room' ? (fed && p.petted === today() ? 'Fed & petted ✓' : 'Feed & pet today') : TIER_INFO[tier].label}
       </span>
     </button>
   )
@@ -440,6 +440,7 @@ function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: stri
   const sp = speciesOf(p)
   const d = today()
   const fed = p.fed === d
+  const petted = p.petted === d
   const [confirm, setConfirm] = useState<string | null>(null)
   const [swapping, setSwapping] = useState(false)
   const room = roomPets(pets)
@@ -448,6 +449,12 @@ function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: stri
     if (!n) return nope()
     heart()
     say(`${p.name} enjoyed that! +${n} 💗`)
+  }
+  const pat = () => {
+    const n = petPet(p.uid)
+    if (!n) return nope()
+    heart()
+    say(`${p.name} loved the pets! +${n} 💗`)
   }
   const move = (to: 'room' | 'foster') => {
     const err = movePet(p.uid, to)
@@ -482,13 +489,18 @@ function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: stri
       </div>
 
       {p.place === 'room' ? (
-        <button type="button" onClick={feed} disabled={fed} className="chunky rounded-2xl bg-heart py-3.5 font-bold text-white disabled:bg-[#d7cfc4]">
-          {fed ? 'Fed today ✓ Back tomorrow' : `Feed ${p.name} · +${feedHearts(p)} 💗`}
-        </button>
-      ) : null}
-      <p className="text-center text-xs text-ink-soft">
-        Average IV {Math.round(avgIv(p))} × 3{bonusOf(p) ? ` × ${(1 + bonusOf(p)).toFixed(2)} mutation bonus` : ''} = {feedHearts(p)} Hearts a day, on top of your daily limit
-      </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={feed} disabled={fed} className="chunky rounded-2xl bg-heart px-2 py-3.5 font-bold text-white disabled:bg-[#d7cfc4]">
+            {fed ? 'Fed ✓' : `🍖 Feed · +${feedHearts(p)}`}
+          </button>
+          <button type="button" onClick={pat} disabled={petted} className="chunky rounded-2xl bg-sun px-2 py-3.5 font-bold text-ink disabled:bg-[#d7cfc4] disabled:text-white">
+            {petted ? 'Petted ✓' : `🫶 Pet · +${petHearts(p)}`}
+          </button>
+        </div>
+      ) : (
+        <p className="text-center text-xs text-ink-soft">Bring {p.name} into the room to feed and pet them.</p>
+      )}
+      <p className="text-center text-xs text-ink-soft">Once a day each. Higher IVs and mutations earn more Hearts.</p>
 
       <div className="rounded-2xl bg-white p-3">
         <Ivs p={p} />
@@ -621,7 +633,7 @@ export function PetsPanel({ open, focus, onClose, onDeliveries, say }: { open: b
                 )}
                 <p className="mt-4 text-center text-xs text-ink-soft">
                   <Check className="mr-1 inline size-3.5" aria-hidden />
-                  Feed each room pet once a day for Hearts on top of your daily limit. Pets never get sick or die.
+                  Feed and pet each room pet once a day for Hearts. Pets never get sick or die.
                 </p>
               </>
             )}

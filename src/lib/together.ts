@@ -13,7 +13,8 @@ import type { Kind as Sky } from './weather'
  */
 
 export type LinkKind = 'couple' | 'friend' | 'family'
-export const COUPLE_CAP = 2400
+/** No daily limit for couples either (the server only checks each payout is a believable size) */
+export const COUPLE_CAP = Number.POSITIVE_INFINITY
 
 export type SharedWeather = { kind: Sky; isDay: boolean; temp: number; place: string | null }
 export type Card = { id: string; code: string; name: string; birthday: string | null; look: Profile | null; room: RoomView | null; weather: SharedWeather | null; seen_at: string }
@@ -157,7 +158,7 @@ function onSave() {
   })
 }
 
-// Pet feeding Hearts skip the daily cap: living together, they go straight into the jar
+// Pet and gift Hearts: living together, they go straight into the jar
 setBonusSink((n) => {
   const h = state.home
   if (!supabase || !h || getSave().home !== h.link || !last) return false

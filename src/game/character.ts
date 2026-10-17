@@ -145,7 +145,7 @@ export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
   me.finish = finish
   blip()
 
-  // Hearts: today's uses and the daily limit decide what this pays
+  // Hearts: each activity pays once a day
   rollDay()
   const s = getSave()
   const usesLeft = USES_PER_DAY - (s.uses[act] ?? 0)
@@ -153,7 +153,6 @@ export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
   const a = ACTS[act]
   const total = usesLeft > 0 && capLeft > 0 ? Math.min(a.hearts * REWARD_MULT, capLeft) : 0
   if (usesLeft <= 0) say(`You’ve done that today, try something else 💗`)
-  else if (capLeft <= 0) say(`Your hearts are full today 💗 Come back tomorrow!`)
   if (total > 0) spendUse(act)
   const pops = Math.max(1, Math.round(a.seconds / 1.8))
   me.task = { uid: p.uid, act, until: 0, next: 0, left: total, per: Math.ceil(total / pops) }

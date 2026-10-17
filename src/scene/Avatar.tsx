@@ -562,10 +562,10 @@ function useNameTag(always = false) {
   return { show: always || on, handlers }
 }
 
+// The tag stays in the page and is only hidden, so hovering never adds or removes a 3D label mid-frame
 function NameTag({ name, show, y = 1.02 }: { name: string; show: boolean; y?: number }) {
-  if (!show) return null
   return (
-    <Html position={[0, y, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
+    <Html position={[0, y, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none', opacity: show ? 1 : 0, transition: 'opacity 150ms ease-out' }}>
       <div className="rounded-full bg-cream/95 px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink shadow">{name}</div>
     </Html>
   )

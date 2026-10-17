@@ -60,7 +60,7 @@ export type Session = {
   doing: { uid: string; act: string; started: number; seconds: number; earned: number; total: number } | null
   /** Whose room you're in, when it isn't your own */
   visit: Visit | null
-  /** Today's Heart limit: 1,200 alone, 2,400 for a couple */
+  /** Today's Heart limit (no limit now: each activity pays once a day instead) */
   cap: number
 }
 
@@ -272,7 +272,7 @@ export function spendUse(act: string) {
 
 export const setMuted = (muted: boolean) => setSave((s) => ({ ...s, muted }))
 
-// Hearts that don't count toward the daily cap (pet feeding). Living as a couple they go into the shared jar,
+// Hearts from pets (feeding, petting) and gifts. Living as a couple they go into the shared jar,
 // which the shared-home code handles by registering itself here.
 let bonusSink: ((n: number) => boolean) | null = null
 export const setBonusSink = (fn: (n: number) => boolean) => void (bonusSink = fn)

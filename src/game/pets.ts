@@ -15,8 +15,10 @@ export const PITY = { mythical: 7, divine: 30 }
 export const SPECIAL_DROP = { legendary: 75, mythical: 25 }
 /** Lowest IV a pet of each tier can roll (IVs go up to 100) */
 export const MIN_IV: Record<Tier, number> = { common: 40, rare: 50, epic: 60, legendary: 70, mythical: 80, divine: 90, seasonal: 60 }
-/** Feeding pays (average IV × FEED_MULT × (1 + mutation bonuses)) Hearts, once a day per pet, on top of the daily cap */
+/** Feeding pays (average IV × FEED_MULT × (1 + mutation bonuses)) Hearts, once a day per pet */
 export const FEED_MULT = 3
+/** Petting is separate from feeding: once a day per pet, (average IV × PET_MULT × (1 + mutation bonuses)) Hearts */
+export const PET_MULT = 2
 /** Days from baby to adult */
 export const GROW_DAYS = 30
 /** Pets living in the room, and in foster care */
@@ -208,6 +210,8 @@ export type Pet = {
   born: string
   /** The last day it was fed */
   fed: string
+  /** The last day it was petted */
+  petted?: string
   place: 'room' | 'foster'
 }
 
@@ -220,6 +224,8 @@ export const avgIv = (p: Pet) => p.ivs.reduce((a, b) => a + b, 0) / p.ivs.length
 export const bonusOf = (p: Pet) => (p.color ? MUTATIONS[p.color].bonus : 0) + (p.sizeMut ? MUTATIONS[p.sizeMut].bonus : 0)
 /** Hearts from one day's feeding */
 export const feedHearts = (p: Pet) => Math.round(avgIv(p) * FEED_MULT * (1 + bonusOf(p)))
+/** Hearts from one day's petting */
+export const petHearts = (p: Pet) => Math.round(avgIv(p) * PET_MULT * (1 + bonusOf(p)))
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
 /** Days since it arrived */

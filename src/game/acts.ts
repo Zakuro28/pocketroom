@@ -2,7 +2,7 @@ import type { Activity } from './catalog'
 
 /**
  * How each activity looks and pays. Hearts come in during the activity; each pays once a day, at REWARD_MULT times `hearts`.
- * The starter room (bed, table, PC) earns about 690 a day; every new piece of furniture adds more ways to earn, up to the cap.
+ * The starter room (bed, table, PC) earns about 840 a day; every new kind of furniture adds another way to earn.
  */
 export const ACTS: Record<Activity, { label: string; verb: string; emoji: string; hearts: number; seconds: number; pose: 'lie' | 'sit' | 'stand' | 'dance' }> = {
   nap: { label: 'Nap', verb: 'Napping', emoji: '😴', hearts: 80, seconds: 12, pose: 'lie' },
@@ -22,9 +22,9 @@ export const ACTS: Record<Activity, { label: string; verb: string; emoji: string
   laundry: { label: 'Do laundry', verb: 'Doing laundry', emoji: '🧺', hearts: 50, seconds: 9, pose: 'stand' },
 }
 
-/** Solo play: up to this many Hearts a day (a couple gets 2,400; pets add their feeding Hearts on top) */
-export const DAILY_CAP = 1200
-/** Hearts gifted once a year on your birthday, on top of the daily cap */
+/** No daily Hearts limit: each activity pays once a day, so more furniture means more ways to earn */
+export const DAILY_CAP = Number.POSITIVE_INFINITY
+/** Hearts gifted once a year on your birthday */
 export const BIRTHDAY_GIFT = 1000
 /** Times each activity pays out per day */
 export const USES_PER_DAY = 1
