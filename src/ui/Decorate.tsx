@@ -5,6 +5,7 @@ import { CATALOG, CATEGORIES, FABRICS, ITEMS, type Category, type Item } from '.
 import { canPlace, type Rot } from '../game/grid'
 import { buy, buySurface, cancelGhost, commitGhost, getSave, getSession, recolor, rotateGhost, setSave, setSession, startMoving, startPlacing, store, useSave, useSession } from '../game/store'
 import { FLOORS, WALLS, swatch, type Surface } from '../game/surfaces'
+import { Slide } from './Slide'
 import { buyChime, lift, nope, place } from '../lib/sound'
 
 const EASE = [0.23, 1, 0.32, 1] as const
@@ -63,7 +64,7 @@ function rotatePlaced(uid: string, say: (m: string) => void) {
 
 function Card({ thumb, name, children, onClick, active = false }: { thumb: React.ReactNode; name: string; children: React.ReactNode; onClick: () => void; active?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className={`chunky flex flex-col items-center rounded-2xl bg-white p-2 text-center ring-2 ${active ? 'ring-mint' : 'ring-transparent'}`}>
+    <button type="button" onClick={onClick} className={`chunky flex w-[5.5rem] flex-col items-center rounded-2xl bg-white p-2 text-center ring-2 ${active ? 'ring-mint' : 'ring-transparent'}`}>
       <span className="relative grid aspect-square w-full place-items-center overflow-hidden rounded-xl bg-paper">{thumb}</span>
       <span className="mt-1.5 line-clamp-1 w-full text-xs font-semibold">{name}</span>
       {children}
@@ -98,15 +99,15 @@ function Catalog({ onBuy }: { onBuy: (i: Item | Surface) => void }) {
 
   return (
     <motion.div {...sheet} className="pointer-events-auto absolute inset-x-0 bottom-0 mx-auto flex max-h-[38dvh] max-w-4xl flex-col rounded-t-[2rem] bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(74,52,40,0.18)]">
-      <div className="flex gap-1.5 overflow-x-auto px-4 pt-4 pb-2 [scrollbar-width:none]">
+      <Slide label="Shop sections" className="gap-1.5 px-4 pt-4 pb-2">
         {tabs.map((t) => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`chunky flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold whitespace-nowrap ${tab === t.id ? 'bg-ink text-cream' : 'bg-white text-ink ring-1 ring-line'}`}>
             <span aria-hidden>{t.icon}</span>
             {t.label}
           </button>
         ))}
-      </div>
-      <div className="flex-1 overflow-y-auto px-4 pt-2 pb-4">
+      </Slide>
+      <div className="flex-1 overflow-y-auto pt-2 pb-4">
         {tab === 'surfaces' ? (
           <div className="space-y-4">
             {(
@@ -116,27 +117,27 @@ function Catalog({ onBuy }: { onBuy: (i: Item | Surface) => void }) {
               ] as const
             ).map(([title, list, kind, current]) => (
               <section key={title}>
-                <h3 className="mb-2 text-sm font-semibold text-ink-soft">{title}</h3>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(4.9rem,1fr))] gap-2.5">
+                <h3 className="mb-2 px-4 text-sm font-semibold text-ink-soft">{title}</h3>
+                <Slide label={title} className="gap-2.5 px-4 pt-0.5 pb-2.5">
                   {list.map((s) => (
                     <Card key={s.id} name={s.name} onClick={() => pickSurface(s, kind)} active={current === s.id} thumb={<img src={swatch(s)} alt="" className="absolute inset-[12%] size-[76%] rounded-lg ring-1 ring-black/5" draggable={false} />}>
                       <Price owned={owned.includes(s.id)} price={s.price} hearts={hearts} />
                     </Card>
                   ))}
-                </div>
+                </Slide>
               </section>
             ))}
           </div>
         ) : items.length ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(4.9rem,1fr))] gap-2.5">
+          <Slide label="Items" className="gap-2.5 px-4 pt-0.5 pb-2.5">
             {items.map((i) => (
               <Card key={i.id} name={i.name} onClick={() => pick(i)} thumb={<img src={`/thumbs/${i.model}.png`} alt="" className={`absolute inset-[11%] size-[78%] object-contain ${i.paint ? 'saturate-150' : ''}`} draggable={false} />}>
                 {storage[i.id] ? <span className="mt-0.5 text-xs font-semibold text-mint">Owned ×{storage[i.id]}</span> : <Price price={i.price} hearts={hearts} />}
               </Card>
             ))}
-          </div>
+          </Slide>
         ) : (
-          <p className="py-8 text-center text-sm text-ink-soft">
+          <p className="px-4 py-8 text-center text-sm text-ink-soft">
             Nothing in storage yet.{' '}
             <button type="button" className="font-semibold text-heart underline underline-offset-2" onClick={() => setTab('seating')}>
               Browse the shop

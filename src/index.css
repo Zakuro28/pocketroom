@@ -111,3 +111,26 @@ body {
     transition: none;
   }
 }
+
+/* Sliding rows: swipe sideways on phones, with a scrollbar showing there's more */
+.slide {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+  touch-action: pan-x;
+}
+.slide > * {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+.slide::-webkit-scrollbar {
+  height: 6px;
+}
+.slide::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 99px;
+}

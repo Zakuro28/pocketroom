@@ -3,7 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { Check, House, Paintbrush } from 'lucide-react'
 import { cancel } from './game/character'
 import { rollDay, setProfile, setSession, useSave, useSession } from './game/store'
-import './lib/auth'
+import { playAsGuest, signInWithGoogle, useKicked } from './lib/auth'
 import { blip } from './lib/sound'
 import { coupleOf, leaveVisit, onNote, otherOf, shareWeather, useTogether } from './lib/together'
 import { skyColors, useWeather } from './lib/weather'
@@ -31,6 +31,7 @@ export default function App() {
   const nextToast = useRef(0)
   const { place, weather, asked, setPlace, useMyLocation, dismiss } = useWeather()
   const [hour, setHour] = useState(() => new Date().getHours())
+  const kicked = useKicked()
 
   // A new day resets today's Hearts; the sky follows the clock
   useEffect(() => {
@@ -153,6 +154,39 @@ export default function App() {
             }}
           />
         )}
+
+        {/* Someone signed in to this account on another device, so this one was logged out */}
+        <AnimatePresence>
+          {kicked && (
+            <motion.div className="fixed inset-0 z-[60] grid place-items-center bg-ink/30 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }}>
+              <motion.div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="kicked-title"
+                initial={{ opacity: 0, scale: 0.94, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', duration: 0.45, bounce: 0.25 }}
+                className="w-full max-w-sm rounded-[2rem] bg-cream p-6 text-center shadow-2xl"
+              >
+                <p className="text-3xl" aria-hidden>
+                  📱
+                </p>
+                <h2 id="kicked-title" className="mt-2 text-xl font-bold">
+                  Signed in somewhere else
+                </h2>
+                <p className="mt-1 text-sm text-ink-soft">Your account was opened on another device, so this one was logged out. Your game is saved to your account.</p>
+                <div className="mt-5 flex flex-col gap-2">
+                  <button type="button" onClick={() => void signInWithGoogle()} className="chunky rounded-2xl bg-heart py-3 font-bold text-white">
+                    Play here instead
+                  </button>
+                  <button type="button" onClick={playAsGuest} className="py-2 text-sm font-semibold text-ink-soft">
+                    Play as a guest
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* First visit: offer the real weather outside */}
         <AnimatePresence>

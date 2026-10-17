@@ -6,6 +6,7 @@ import { BUILDS, DEFAULT_OUTFIT, EYE_COLORS, HAIR_COLORS, HAIR_STYLES, MAX_HEIGH
 import { today } from '../game/store'
 import { Mannequin } from '../scene/Avatar'
 import { blip } from '../lib/sound'
+import { Slide } from './Slide'
 
 const EASE = [0.23, 1, 0.32, 1] as const
 
@@ -22,7 +23,7 @@ export function Preview({ profile }: { profile: Profile }) {
 
 function Swatches({ colors, value, onPick, label }: { colors: string[]; value: string; onPick: (c: string) => void; label: string }) {
   return (
-    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
+    <Slide className="-mx-1.5 gap-2 px-1.5 pt-1.5 pb-2.5" role="radiogroup" label={label}>
       {colors.map((c) => (
         <button
           key={c}
@@ -38,13 +39,13 @@ function Swatches({ colors, value, onPick, label }: { colors: string[]; value: s
           style={{ background: c }}
         />
       ))}
-    </div>
+    </Slide>
   )
 }
 
 function Chips<T extends string>({ options, value, onPick, label }: { options: { id: T; label: string }[]; value: T; onPick: (v: T) => void; label: string }) {
   return (
-    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
+    <Slide className="-mx-1.5 gap-2 px-1.5 pt-1.5 pb-2.5" role="radiogroup" label={label}>
       {options.map((o) => (
         <button
           key={o.id}
@@ -60,7 +61,7 @@ function Chips<T extends string>({ options, value, onPick, label }: { options: {
           {o.label}
         </button>
       ))}
-    </div>
+    </Slide>
   )
 }
 

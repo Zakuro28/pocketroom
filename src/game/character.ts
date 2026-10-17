@@ -1,4 +1,4 @@
-import { ACTS, USES_PER_DAY } from './acts'
+import { ACTS, REWARD_MULT, USES_PER_DAY } from './acts'
 import { ITEMS, type Activity } from './catalog'
 import { CELL, FORWARD, ROOM, blockedCells, centerOf, findPath, heightOf, rectOf, standCell, type Placed } from './grid'
 import { earn, getPlaced, getSave, getSession, rollDay, setSession, spendUse } from './store'
@@ -151,8 +151,8 @@ export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
   const usesLeft = USES_PER_DAY - (s.uses[act] ?? 0)
   const capLeft = getSession().cap - s.earnedToday
   const a = ACTS[act]
-  const total = usesLeft > 0 && capLeft > 0 ? Math.min(a.hearts, capLeft) : 0
-  if (usesLeft <= 0) say(`You’ve done that ${USES_PER_DAY}× today, try something else 💗`)
+  const total = usesLeft > 0 && capLeft > 0 ? Math.min(a.hearts * REWARD_MULT, capLeft) : 0
+  if (usesLeft <= 0) say(`You’ve done that today, try something else 💗`)
   else if (capLeft <= 0) say(`Your hearts are full today 💗 Come back tomorrow!`)
   if (total > 0) spendUse(act)
   const pops = Math.max(1, Math.round(a.seconds / 1.8))
@@ -160,8 +160,90 @@ export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
   setSession((st) => ({ ...st, doing: { uid: p.uid, act, started: 0, seconds: a.seconds, earned: 0, total } }))
 }
 
+// ---- Keyboard: WASD or arrow keys walk the character (tap-to-walk still works) ----
+
+const held = new Set<string>()
+const KEYS: Record<string, string> = { w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down', a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right' }
+// The camera looks down from the front-right corner, so "up" on screen is toward the back-left of the room
+const SCREEN = { up: [-1, -1], down: [1, 1], left: [-1, 1], right: [1, -1] } as const
+
+/** Listen for walking keys while playing. Returns a function that stops listening. */
+export function bindKeys() {
+  const typing = (e: KeyboardEvent) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
+  const onDown = (e: KeyboardEvent) => {
+    const k = KEYS[e.key.toLowerCase()]
+    if (!k || typing(e) || e.ctrlKey || e.metaKey || e.altKey || getSession().mode !== 'play') return
+    e.preventDefault()
+    held.add(k)
+  }
+  const onUp = (e: KeyboardEvent) => {
+    const k = KEYS[e.key.toLowerCase()]
+    if (k) held.delete(k)
+  }
+  const clear = () => held.clear()
+  window.addEventListener('keydown', onDown)
+  window.addEventListener('keyup', onUp)
+  window.addEventListener('blur', clear)
+  return () => {
+    window.removeEventListener('keydown', onDown)
+    window.removeEventListener('keyup', onUp)
+    window.removeEventListener('blur', clear)
+    clear()
+  }
+}
+
+let blockedFor: Placed[] | null = null
+let blockedNow = new Set<string>()
+/** Free floor at this spot (the character is about a fifth of a cell wide) */
+function free(x: number, z: number, placed: Placed[]) {
+  if (blockedFor !== placed) {
+    blockedFor = placed
+    blockedNow = blockedCells(placed)
+  }
+  const r = 0.12
+  if (x < r || z < r || x > ROOM.w * CELL - r || z > ROOM.d * CELL - r) return false
+  for (const [ox, oz] of [[-r, -r], [r, -r], [-r, r], [r, r]]) {
+    const [cx, cz] = cellOf(x + ox, z + oz)
+    if (blockedNow.has(`${cx},${cz}`)) return false
+  }
+  return true
+}
+
+/** Walk with the keys. True while a key is held, so the rest of the frame's walking waits. */
+function drive(dt: number) {
+  let dx = 0
+  let dz = 0
+  held.forEach((k) => {
+    const [x, z] = SCREEN[k as keyof typeof SCREEN]
+    dx += x
+    dz += z
+  })
+  const len = Math.hypot(dx, dz)
+  if (!len || getSession().mode !== 'play') {
+    if (me.pose === 'walk' && !me.path.length && !me.finish) me.pose = 'stand'
+    return false
+  }
+  // Taking control stops any activity or tap-walk, and gets you up from a seat or bed
+  if (me.task || me.path.length || me.finish || me.pose === 'sit' || me.pose === 'lie' || me.pose === 'dance') cancel()
+  const placed = getPlaced()
+  const sp = 1.7 * dt
+  const mx = (dx / len) * sp
+  const mz = (dz / len) * sp
+  // Slide along furniture and walls instead of stopping dead
+  if (free(me.x + mx, me.z + mz, placed)) {
+    me.x += mx
+    me.z += mz
+  } else if (free(me.x + mx, me.z, placed)) me.x += mx
+  else if (free(me.x, me.z + mz, placed)) me.z += mz
+  me.y = 0
+  me.rotY = Math.atan2(dx, dz)
+  me.pose = 'walk'
+  return true
+}
+
 /** Called every frame by the scene: walk, settle into the pose, and drip Hearts during the activity */
 export function step(dt: number, now: number, pop: (n: number) => void) {
+  if (drive(dt)) return
   if (me.path.length) {
     const t = me.path[0]
     const dx = t.x - me.x

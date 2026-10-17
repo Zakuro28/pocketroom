@@ -5,7 +5,7 @@ import { OrthographicCamera, useGLTF } from '@react-three/drei'
 import { CATALOG } from '../game/catalog'
 import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
 import { getSession, setSession, usePlaced, useSave, useSession } from '../game/store'
-import { goUse, guestSpot, settle, walkTo } from '../game/character'
+import { bindKeys, goUse, guestSpot, settle, walkTo } from '../game/character'
 import { coupleOf, isOnline, otherOf, useTogether } from '../lib/together'
 import { blip } from '../lib/sound'
 import Avatar, { Guest } from './Avatar'
@@ -90,6 +90,9 @@ export default function Stage({ say, sky }: { say: (msg: string) => void; sky: s
 
   // Furniture moved around while decorating can end up where your character is standing
   useEffect(() => settle(placed), [placed])
+
+  // WASD and the arrow keys walk your character
+  useEffect(() => bindKeys(), [])
 
   const onTap = useCallback(
     (p: Placed) => {
