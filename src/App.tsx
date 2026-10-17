@@ -16,6 +16,8 @@ import People from './ui/People'
 import Creator from './ui/Creator'
 import Sky from './ui/Sky'
 import { TourInvites, TourPanel } from './ui/Tour'
+import { AdoptPicker, DeliveryFlow, PetsPanel } from './ui/PetUI'
+import { checkDeliveries } from './game/petActions'
 import { useTour } from './lib/tour'
 
 const EASE = [0.23, 1, 0.32, 1] as const
@@ -35,16 +37,25 @@ export default function App() {
   const [hour, setHour] = useState(() => new Date().getHours())
   const kicked = useKicked()
   const touring = useTour((t) => t.phase === 'touring')
+  const [pets, setPets] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
+  const [delivering, setDelivering] = useState(false)
+  const waiting = useSave((s) => s.deliveries.length)
 
-  // A new day resets today's Hearts; the sky follows the clock
+  // A new day resets today's Hearts and brings new pet deliveries; the sky follows the clock
   useEffect(() => {
     rollDay()
+    checkDeliveries()
     const id = setInterval(() => {
       rollDay()
+      checkDeliveries()
       setHour(new Date().getHours())
     }, 30_000)
     return () => clearInterval(id)
   }, [])
+  // A brand-new player gets their first delivery as soon as they've made their character
+  useEffect(() => {
+    if (profile) checkDeliveries()
+  }, [profile])
 
   const say = useCallback((text: string) => {
     const id = nextToast.current++
@@ -53,6 +64,13 @@ export default function App() {
   }, [])
 
   useEffect(() => onNote(say), [say])
+
+  // Tell the player when a pet arrives at the door
+  const lastWaiting = useRef(waiting)
+  useEffect(() => {
+    if (waiting > lastWaiting.current) say('📦 A pet delivery is at your door!')
+    lastWaiting.current = waiting
+  }, [waiting, say])
 
   // Share your weather with your people, for their split sky (a city name only if you picked one)
   useEffect(() => {
@@ -87,11 +105,11 @@ export default function App() {
           </div>
         )}
         <div className="absolute inset-0">
-          <Stage say={say} sky={sky.window} />
+          <Stage say={say} sky={sky.window} onPet={(uid) => setPets({ open: true, focus: uid })} onDelivery={() => setDelivering(true)} />
         </div>
 
         <div className="pointer-events-none absolute inset-0">
-          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} weatherLabel={weatherLabel} />
+          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} weatherLabel={weatherLabel} />
           {mode === 'play' && <DoingPill />}
           <TourInvites />
 
@@ -147,6 +165,18 @@ export default function App() {
         <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} onCustomize={() => setCustomizing(true)} />
         <Closet open={wardrobe} onClose={() => setWardrobe(false)} say={say} />
         <People open={people} onClose={() => setPeople(false)} say={say} />
+        <PetsPanel
+          open={pets.open}
+          focus={pets.focus}
+          onClose={() => setPets({ open: false, focus: null })}
+          onDeliveries={() => {
+            setPets({ open: false, focus: null })
+            setDelivering(true)
+          }}
+          say={say}
+        />
+        <DeliveryFlow open={delivering} onClose={() => setDelivering(false)} say={say} />
+        <AdoptPicker say={say} />
 
         {/* New players make their character first; Settings can reopen this to change it */}
         {(!profile || customizing) && (

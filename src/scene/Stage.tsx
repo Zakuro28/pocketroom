@@ -13,6 +13,7 @@ import Avatar, { Guest, Remote } from './Avatar'
 import { Ghost, PlacedItem } from './Furniture'
 import Placer from './Placer'
 import Room from './Room'
+import { Courier, Pets } from './Pets'
 
 // Start downloading every furniture model right away (2 MB in all), so the shop opens instantly
 new Set(CATALOG.map((i) => i.model)).forEach((m) => useGLTF.preload(`/models/${m}.glb`))
@@ -72,8 +73,11 @@ function TapRing({ x, z }: { x: number; z: number }) {
   )
 }
 
-export default function Stage({ say, sky }: { say: (msg: string) => void; sky: string }) {
+export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: string) => void; sky: string; onPet: (uid: string) => void; onDelivery: () => void }) {
   const placed = usePlaced()
+  const pets = useSave((s) => s.pets)
+  const waiting = useSave((s) => s.deliveries.length)
+  const roomPets = useMemo(() => pets.filter((p) => p.place === 'room'), [pets])
   const mode = useSession((s) => s.mode)
   const visit = useSession((s) => s.visit)
   const living = useSave((s) => s.home)
@@ -149,6 +153,9 @@ export default function Stage({ say, sky }: { say: (msg: string) => void; sky: s
         <Avatar />
         {guest && <Guest profile={guest.look} name={guest.name} x={spot.x} z={spot.z} />}
         {touring && <Remote id={touring.id} profile={touring.look!} name={touring.name} />}
+        {/* Your pets live at home; the courier waits at your door while a pet is waiting */}
+        {!visit && <Pets pets={roomPets} placed={placed} onTap={(uid) => mode === 'play' && onPet(uid)} />}
+        {!visit && mode === 'play' && waiting > 0 && <Courier count={waiting} onTap={onDelivery} />}
       </Suspense>
       {mode === 'edit' && ghost && <Placer />}
     </Canvas>

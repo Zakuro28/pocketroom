@@ -3,7 +3,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { DAILY_CAP } from '../game/acts'
 import { cancel, settle } from '../game/character'
 import type { Profile } from '../game/look'
-import { getSave, getSession, now, setCap, setSave, setServerTime, setSession, subscribeSave, type RoomView, type Save } from '../game/store'
+import { getSave, getSession, now, setBonusSink, setCap, setSave, setServerTime, setSession, subscribeSave, type RoomView, type Save } from '../game/store'
 import { send, supabase } from './supa'
 import type { Kind as Sky } from './weather'
 
@@ -156,6 +156,19 @@ function onSave() {
     }
   })
 }
+
+// Pet feeding Hearts skip the daily cap: living together, they go straight into the jar
+setBonusSink((n) => {
+  const h = state.home
+  if (!supabase || !h || getSave().home !== h.link || !last) return false
+  const link = h.link
+  queue = queue.then(async () => {
+    const { data, error } = await supabase!.rpc('couple_feed', { p_link: link, p_n: n })
+    if (error) note(errorText(error))
+    else applyJar(data as { jar: number; earned: number })
+  })
+  return true
+})
 
 /** Line the game up with what the server says: move in, keep living together, or move out after a breakup */
 async function reconcile() {

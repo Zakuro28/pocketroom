@@ -6,6 +6,12 @@ import { STARTER } from './starter'
 import { FLOORS, WALLS } from './surfaces'
 import type { Profile, Slot } from './look'
 import { CLOTHING, STARTER_CLOTHES } from './wardrobe'
+import type { Pet, Pity } from './pets'
+
+/** A pet waiting at the door: today's free spin, a birthday or monthsary spin, or a seasonal event */
+export type Delivery = { id: string; kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal'; event?: string }
+/** What's been handed out already, so each spin comes once */
+export type Spins = { day: string; pity: Pity; birthday: number; monthsary: string; seasonal: string[] }
 
 /** Everything that's saved: the room, what's in storage, Hearts and today's progress */
 export type Save = {
@@ -25,6 +31,13 @@ export type Save = {
   clothes: string[]
   /** While living with a partner: the couple's id. The room and Hearts then mirror the shared home. */
   home: string | null
+  /** Your pets: up to 3 in the room and 10 in foster care */
+  pets: Pet[]
+  /** Pets waiting at the door to be rolled */
+  deliveries: Delivery[]
+  spins: Spins
+  /** A new pet that arrived with foster care full: you pick a foster pet to be adopted first */
+  adopting: string | null
 }
 
 /** A room as other players see it */
@@ -73,6 +86,10 @@ const fresh = (): Save => ({
   profile: null,
   clothes: STARTER_CLOTHES,
   home: null,
+  pets: [],
+  deliveries: [],
+  spins: { day: '', pity: { sinceMythical: 0, sinceDivine: 0 }, birthday: 0, monthsary: '', seasonal: [] },
+  adopting: null,
 })
 
 function load(): Save {
@@ -246,6 +263,16 @@ export function spendUse(act: string) {
 }
 
 export const setMuted = (muted: boolean) => setSave((s) => ({ ...s, muted }))
+
+// Hearts that don't count toward the daily cap (pet feeding). Living as a couple they go into the shared jar,
+// which the shared-home code handles by registering itself here.
+let bonusSink: ((n: number) => boolean) | null = null
+export const setBonusSink = (fn: (n: number) => boolean) => void (bonusSink = fn)
+export function addBonus(n: number) {
+  if (n <= 0) return
+  if (bonusSink?.(n)) return
+  setSave((s) => ({ ...s, hearts: s.hearts + n }))
+}
 
 export const setProfile = (profile: Profile) => setSave((s) => ({ ...s, profile }))
 

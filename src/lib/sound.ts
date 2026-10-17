@@ -40,3 +40,10 @@ export const heart = () => tone(1046, { dur: 0.16, gain: 0.03, to: 1318 })
 export const buyChime = () => [784, 988, 1175].forEach((f, i) => tone(f, { at: i * 0.07, dur: 0.18, gain: 0.04 }))
 /** Can't do that */
 export const nope = () => tone(180, { dur: 0.14, gain: 0.05, type: 'triangle', to: 120 })
+/** The reel passing a card */
+export const tick = () => tone(1400, { dur: 0.03, gain: 0.025, type: 'square' })
+/** A pet revealed: bigger tiers get a longer, brighter fanfare */
+export function fanfare(level: number) {
+  const notes = [523, 659, 784, 988, 1175, 1319, 1568].slice(0, 3 + level)
+  notes.forEach((f, i) => tone(f, { at: i * 0.09, dur: 0.22, gain: 0.04 }))
+}

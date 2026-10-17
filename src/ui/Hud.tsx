@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion } from 'motion/react'
-import { Check, ChevronDown, Settings, Shirt, Sparkles, Users, X } from 'lucide-react'
+import { Check, ChevronDown, PawPrint, Settings, Shirt, Sparkles, Users, X } from 'lucide-react'
 import { ACTS, REWARD_MULT, USES_PER_DAY } from '../game/acts'
 import { ITEMS, type Activity } from '../game/catalog'
 import { cancel } from '../game/character'
@@ -22,7 +22,8 @@ function Rolling({ value }: { value: number }) {
 }
 
 /** Hearts, today's progress toward the daily limit, and the room's style score */
-export function Hud({ onSettings, onWardrobe, onPeople, weatherLabel }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; weatherLabel: string | null }) {
+export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; onPets: () => void; weatherLabel: string | null }) {
+  const waiting = useSave((s) => s.deliveries.length)
   const hearts = useSave((s) => s.hearts)
   const earned = useSave((s) => s.earnedToday)
   const style = useSave((s) => styleScore(s.placed))
@@ -39,12 +40,12 @@ export function Hud({ onSettings, onWardrobe, onPeople, weatherLabel }: { onSett
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-5">
       <div className="pointer-events-auto relative rounded-3xl bg-cream/95 px-4 py-3 shadow-[0_6px_0_rgba(74,52,40,0.12)] ring-2 ring-white">
-        <p className="max-w-36 truncate text-xs font-semibold tracking-wide text-ink-soft uppercase sm:max-w-44">{partner ? `Jar with ${partner}` : 'PocketRoom'}</p>
+        <p className="max-w-32 truncate text-xs font-semibold tracking-wide text-ink-soft uppercase sm:max-w-44">{partner ? `Jar with ${partner}` : 'PocketRoom'}</p>
         <p className="mt-0.5 flex items-center gap-1.5 text-2xl leading-none font-bold text-heart tabular-nums sm:text-3xl">
           💗 <Rolling value={hearts} />
         </p>
         {/* The Today bar opens a checklist of today's activities */}
-        <button type="button" onClick={() => setToday((o) => !o)} aria-expanded={today} aria-label={`Today ${earned} of ${cap} Hearts. Show today's activities`} className="mt-2 block w-36 text-left sm:w-44">
+        <button type="button" onClick={() => setToday((o) => !o)} aria-expanded={today} aria-label={`Today ${earned} of ${cap} Hearts. Show today's activities`} className="mt-2 block w-32 text-left sm:w-44">
           <div className="h-2.5 overflow-hidden rounded-full bg-[#f2dfe3]">
             <motion.div className="h-full origin-left rounded-full bg-heart" initial={false} animate={{ scaleX: pct }} transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }} />
           </div>
@@ -60,19 +61,23 @@ export function Hud({ onSettings, onWardrobe, onPeople, weatherLabel }: { onSett
         </button>
         <AnimatePresence>{today && <TodayList onClose={() => setToday(false)} full={pct >= 1} />}</AnimatePresence>
       </div>
-      <div className="pointer-events-auto flex items-center gap-2">
+      <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
         {weatherLabel && <span className="hidden rounded-full bg-cream/90 px-3 py-2 text-sm font-medium text-ink-soft shadow-[0_4px_0_rgba(74,52,40,0.1)] sm:block">{weatherLabel}</span>}
         <span className="hidden items-center gap-1.5 rounded-full bg-cream/95 px-3.5 py-2 text-sm font-semibold shadow-[0_4px_0_rgba(74,52,40,0.12)] sm:flex" title="Room style grows with what you place">
           <Sparkles className="size-4 text-sun" aria-hidden /> <Rolling value={style} />
         </span>
-        <button type="button" onClick={onPeople} aria-label={asking ? `People, ${asking} waiting` : 'People'} className="chunky relative grid size-11 place-items-center rounded-full bg-cream">
+        <button type="button" onClick={onPeople} aria-label={asking ? `People, ${asking} waiting` : 'People'} className="chunky relative grid size-10 place-items-center rounded-full bg-cream sm:size-11">
           <Users className="size-5" />
           {asking > 0 && <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-heart px-1 text-[11px] leading-5 font-bold text-white">{asking}</span>}
         </button>
-        <button type="button" onClick={onWardrobe} aria-label="Wardrobe" className="chunky grid size-11 place-items-center rounded-full bg-cream">
+        <button type="button" onClick={onPets} aria-label={waiting ? `Pets, ${waiting} waiting at the door` : 'Pets'} className="chunky relative grid size-10 place-items-center rounded-full bg-cream sm:size-11">
+          <PawPrint className="size-5" />
+          {waiting > 0 && <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-heart px-1 text-[11px] leading-5 font-bold text-white">{waiting}</span>}
+        </button>
+        <button type="button" onClick={onWardrobe} aria-label="Wardrobe" className="chunky grid size-10 place-items-center rounded-full bg-cream sm:size-11">
           <Shirt className="size-5" />
         </button>
-        <button type="button" onClick={onSettings} aria-label="Settings" className="chunky grid size-11 place-items-center rounded-full bg-cream">
+        <button type="button" onClick={onSettings} aria-label="Settings" className="chunky grid size-10 place-items-center rounded-full bg-cream sm:size-11">
           <Settings className="size-5" />
         </button>
       </div>
