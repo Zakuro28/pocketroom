@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Html, RoundedBox } from '@react-three/drei'
 import type { Group, Mesh } from 'three'
 import { me, step, type Pose } from '../game/character'
 import { BUILDS, DEFAULT_PROFILE, gameHeight, heightScale, type HairStyle, type Profile } from '../game/look'
 import { useSave } from '../game/store'
 import { useTogether } from '../lib/together'
-import { them, useTour } from '../lib/tour'
+import { useTour } from '../lib/tour'
 import { CLOTHING, type Clothing } from '../game/wardrobe'
 
 type Rig = {
@@ -537,17 +537,50 @@ export function Mannequin({ profile, height }: { profile: Profile; height: numbe
 
 /** Someone else in the room (your partner, or the friend you're visiting): stands around, waves now and then, with their name above */
 const guestDrive: Drive = (t) => ({ pose: t % 9 < 1.2 ? 'wave' : 'stand', walking: false })
-export function Guest({ profile, name, x, z }: { profile: Profile; name: string; x: number; z: number }) {
+/**
+ * Another character's name: hidden until you point at them with the mouse (or tap them on a phone, which
+ * shows it for a few seconds). `always` keeps it showing, for the courier's message.
+ */
+function useNameTag(always = false) {
+  const [on, setOn] = useState(false)
+  const timer = useRef(0)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const handlers = {
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+      if (e.pointerType !== 'mouse') return
+      e.stopPropagation()
+      setOn(true)
+    },
+    onPointerOut: (e: ThreeEvent<PointerEvent>) => e.pointerType === 'mouse' && setOn(false),
+    onPointerDown: (e: ThreeEvent<PointerEvent>) => {
+      if (e.pointerType === 'mouse') return
+      setOn(true)
+      clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => setOn(false), 2500)
+    },
+  }
+  return { show: always || on, handlers }
+}
+
+function NameTag({ name, show, y = 1.02 }: { name: string; show: boolean; y?: number }) {
+  if (!show) return null
   return (
-    <group position={[x, 0, z]} rotation-y={Math.PI / 4} scale={1.25}>
+    <Html position={[0, y, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
+      <div className="rounded-full bg-cream/95 px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink shadow">{name}</div>
+    </Html>
+  )
+}
+
+export function Guest({ profile, name, x, z, alwaysName = false }: { profile: Profile; name: string; x: number; z: number; alwaysName?: boolean }) {
+  const tag = useNameTag(alwaysName)
+  return (
+    <group position={[x, 0, z]} rotation-y={Math.PI / 4} scale={1.25} {...tag.handlers}>
       <mesh rotation-x={-Math.PI / 2} position-y={0.008}>
         <circleGeometry args={[0.17, 24]} />
         <meshBasicMaterial color="#000" transparent opacity={0.16} depthWrite={false} />
       </mesh>
       <Body p={profile} height={gameHeight(profile)} drive={guestDrive} />
-      <Html position={[0, 1.02, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
-        <div className="rounded-full bg-cream/95 px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink shadow">{name}</div>
-      </Html>
+      <NameTag name={name} show={tag.show} />
     </group>
   )
 }
@@ -565,10 +598,13 @@ function Bubble({ of, y }: { of?: string; y: number }) {
   )
 }
 
-const remoteDrive: Drive = () => ({ pose: them.pose, walking: them.pose === 'walk' })
+/** Where another player's character is, kept up to date many times a second by a live channel */
+export type LivePos = { x: number; z: number; y: number; rotY: number; pose: Pose }
 
 /** The other player on a tour: walks, sits and naps live, glided smoothly between updates */
-export function Remote({ id, profile, name }: { id: string; profile: Profile; name: string }) {
+export function Remote({ id, profile, name, at }: { id: string; profile: Profile; name: string; at: LivePos }) {
+  const tag = useNameTag()
+  const remoteDrive = useMemo<Drive>(() => () => ({ pose: at.pose, walking: at.pose === 'walk' }), [at])
   const root = useRef<Group>(null)
   const shadow = useRef<Mesh>(null)
   const placed = useRef(false)
@@ -578,23 +614,21 @@ export function Remote({ id, profile, name }: { id: string; profile: Profile; na
     // Jump there the first time, then glide (updates arrive about ten times a second)
     const k = placed.current ? Math.min(1, dt * 12) : 1
     placed.current = true
-    r.position.x += (them.x - r.position.x) * k
-    r.position.y += (them.y - r.position.y) * k
-    r.position.z += (them.z - r.position.z) * k
-    const diff = ((them.rotY - r.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI
+    r.position.x += (at.x - r.position.x) * k
+    r.position.y += (at.y - r.position.y) * k
+    r.position.z += (at.z - r.position.z) * k
+    const diff = ((at.rotY - r.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI
     r.rotation.y += diff * Math.min(1, dt * 12)
-    if (shadow.current) shadow.current.visible = them.pose !== 'lie' && them.y === 0
+    if (shadow.current) shadow.current.visible = at.pose !== 'lie' && at.y === 0
   })
   return (
-    <group ref={root} scale={1.25}>
+    <group ref={root} scale={1.25} {...tag.handlers}>
       <mesh ref={shadow} rotation-x={-Math.PI / 2} position-y={0.008}>
         <circleGeometry args={[0.17, 24]} />
         <meshBasicMaterial color="#000" transparent opacity={0.16} depthWrite={false} />
       </mesh>
       <Body p={profile} height={gameHeight(profile)} drive={remoteDrive} />
-      <Html position={[0, 1.02, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
-        <div className="rounded-full bg-cream/95 px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink shadow">{name}</div>
-      </Html>
+      <NameTag name={name} show={tag.show} />
       <Bubble of={id} y={1.22} />
     </group>
   )

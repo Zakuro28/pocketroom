@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { getSave, replaceSave, subscribeSave, type Save } from '../game/store'
+import { getSave, replaceSave, subscribeSave, wipeDevice, type Save } from '../game/store'
 import { send, supabase } from './supa'
 import { startTogether, stopTogether } from './together'
 
@@ -109,6 +109,18 @@ export async function signInWithGoogle() {
 export function signOut() {
   setKicked(false)
   return supabase?.auth.signOut({ scope: 'local' })
+}
+
+/** Delete your account and everything in it, then start over as a guest. Returns an error message, or null. */
+export async function deleteAccount() {
+  if (!supabase || !user) return 'Sign in first'
+  const { error } = await supabase.rpc('delete_my_account')
+  if (error) return error.message
+  unwatchDevice()
+  wipeDevice()
+  await supabase.auth.signOut({ scope: 'local' })
+  location.reload()
+  return null
 }
 
 /** After being logged out by another device: keep playing here as a guest */

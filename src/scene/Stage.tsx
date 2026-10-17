@@ -7,13 +7,15 @@ import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
 import { getSession, setSession, usePlaced, useSave, useSession } from '../game/store'
 import { bindKeys, goUse, guestSpot, settle, walkTo } from '../game/character'
 import { coupleOf, isOnline, otherOf, useTogether } from '../lib/together'
-import { useTour } from '../lib/tour'
+import { them, them2, useTour } from '../lib/tour'
+import { partnerAt, usePartnerHere, useVisitor, visitorAt } from '../lib/homeLive'
 import { blip } from '../lib/sound'
 import Avatar, { Guest, Remote } from './Avatar'
 import { Ghost, PlacedItem } from './Furniture'
 import Placer from './Placer'
 import Room from './Room'
 import { Courier, Pets } from './Pets'
+import { speciesOf } from '../game/pets'
 
 // Start downloading every furniture model right away (2 MB in all), so the shop opens instantly
 new Set(CATALOG.map((i) => i.model)).forEach((m) => useGLTF.preload(`/models/${m}.glb`))
@@ -77,16 +79,28 @@ export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: stri
   const placed = usePlaced()
   const pets = useSave((s) => s.pets)
   const waiting = useSave((s) => s.deliveries.length)
+  const living = useSave((s) => s.home)
   const roomPets = useMemo(() => pets.filter((p) => p.place === 'room'), [pets])
+  // Pets in the room on screen: the host's when visiting; at home yours, plus your partner's if you live together
+  const partnerPets = useTogether((t) => {
+    const c = coupleOf(t)
+    return c && living === c.id ? t.cards[otherOf(c)]?.room?.pets : undefined
+  })
   const mode = useSession((s) => s.mode)
   const visit = useSession((s) => s.visit)
-  const living = useSave((s) => s.home)
-  // Someone else in the room: the friend you're visiting, or your partner when they're online at home
-  const partner = useTogether((t) => {
+  const shownPets = useMemo(() => (visit ? (visit.room.pets ?? []) : [...roomPets, ...(partnerPets ?? [])]), [visit, roomPets, partnerPets])
+  // Someone else in the room: the friend you're visiting, or your partner at home. When you're both home,
+  // your partner moves live; otherwise (an older version of the game on their side) they stand and wave.
+  const partnerCard = useTogether((t) => {
     const c = coupleOf(t)
-    const card = c && living === c.id && !visit ? t.cards[otherOf(c)] : undefined
-    return card && isOnline(card) && card.look ? card : null
+    return c && living === c.id && !visit ? (t.cards[otherOf(c)] ?? null) : null
   })
+  const partnerLive = usePartnerHere()
+  const live = partnerLive && partnerCard?.look ? partnerCard : null
+  // A friend your partner is touring around your shared home, and (on a tour of a couple's home) the host's partner
+  const visitor = useVisitor()
+  const housemate = useTour((t) => (t.phase === 'touring' && !t.hosting && t.extra?.look ? t.extra : null))
+  const partner = !live && partnerCard && isOnline(partnerCard) && partnerCard.look ? partnerCard : null
   // On a tour the other player walks around live instead of standing still
   const touring = useTour((t) => (t.phase === 'touring' && t.here && t.peer?.look ? t.peer : null))
   const host = visit && touring && visit.id === touring.id
@@ -152,9 +166,22 @@ export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: stri
         {ghost && <Ghost g={ghost} all={placed} />}
         <Avatar />
         {guest && <Guest profile={guest.look} name={guest.name} x={spot.x} z={spot.z} />}
-        {touring && <Remote id={touring.id} profile={touring.look!} name={touring.name} />}
+        {touring && <Remote id={touring.id} profile={touring.look!} name={touring.name} at={them} />}
+        {live && <Remote id={live.id} profile={live.look!} name={live.name} at={partnerAt} />}
+        {!visit && visitor?.look && <Remote id={visitor.id} profile={visitor.look} name={visitor.name} at={visitorAt} />}
+        {housemate && <Remote id={housemate.id} profile={housemate.look!} name={housemate.name} at={them2} />}
         {/* Your pets live at home; the courier waits at your door while a pet is waiting */}
-        {!visit && <Pets pets={roomPets} placed={placed} onTap={(uid) => mode === 'play' && onPet(uid)} />}
+        <Pets
+          pets={shownPets}
+          placed={placed}
+          onTap={(uid) => {
+            if (mode !== 'play') return
+            // Your own pets open their card; anyone else's just say hello
+            if (roomPets.some((p) => p.uid === uid)) return onPet(uid)
+            const other = shownPets.find((p) => p.uid === uid)
+            if (other) say(`${other.name} the ${speciesOf(other).name} says hi 🐾`)
+          }}
+        />
         {!visit && mode === 'play' && waiting > 0 && <Courier count={waiting} onTap={onDelivery} />}
       </Suspense>
       {mode === 'edit' && ghost && <Placer />}

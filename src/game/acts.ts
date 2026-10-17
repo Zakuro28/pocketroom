@@ -24,6 +24,8 @@ export const ACTS: Record<Activity, { label: string; verb: string; emoji: string
 
 /** Solo play: up to this many Hearts a day (a couple gets 2,400; pets add their feeding Hearts on top) */
 export const DAILY_CAP = 1200
+/** Hearts gifted once a year on your birthday, on top of the daily cap */
+export const BIRTHDAY_GIFT = 1000
 /** Times each activity pays out per day */
 export const USES_PER_DAY = 1
 /** Each activity's one daily use pays this many times its `hearts`, so a day earns the same as before (when it was 3 uses) */

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { LocateFixed, LogOut, MapPin, Search, UserRound, Volume2, VolumeX, X } from 'lucide-react'
-import { canSignIn, signInWithGoogle, signOut, useUser } from '../lib/auth'
-import { setMuted, useSave } from '../game/store'
+import { LocateFixed, LogOut, MapPin, Search, Trash2, UserRound, Volume2, VolumeX, X } from 'lucide-react'
+import { canSignIn, deleteAccount, signInWithGoogle, signOut, useUser } from '../lib/auth'
+import { resetProgress, setMuted, useSave, wipeDevice } from '../game/store'
 import { coupleOf, endLink, otherOf, useTogether } from '../lib/together'
 import { searchCity, type Place } from '../lib/weather'
 
@@ -60,7 +60,7 @@ export function PlacePicker({ onPick, onLocate }: { onPick: (p: Place) => void; 
   )
 }
 
-export default function Settings({ open, onClose, place, onPick, onLocate, onCustomize }: { open: boolean; onClose: () => void; place: Place | null; onPick: (p: Place) => void; onLocate: () => Promise<boolean>; onCustomize: () => void }) {
+export default function Settings({ open, onClose, place, onPick, onLocate, onCustomize, say }: { open: boolean; onClose: () => void; place: Place | null; onPick: (p: Place) => void; onLocate: () => Promise<boolean>; onCustomize: () => void; say: (m: string) => void }) {
   const muted = useSave((s) => s.muted)
   const user = useUser()
   const couple = useTogether((t) => coupleOf(t))
@@ -181,9 +181,72 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
                 return ok
               }}
             />
+            <DangerZone signedIn={!!user} inCouple={!!couple} onClose={onClose} say={say} />
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+/** Starting over: clear the room and progress (pets stay), or delete the whole account. Each asks once more first. */
+function DangerZone({ signedIn, inCouple, onClose, say }: { signedIn: boolean; inCouple: boolean; onClose: () => void; say: (m: string) => void }) {
+  const [asking, setAsking] = useState<'reset' | 'account' | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const reset = () => {
+    if (!resetProgress()) return setErr('Not while you live together: the room and jar belong to both of you.')
+    setAsking(null)
+    onClose()
+    say('Fresh start! Your character and pets are still here 🐾')
+  }
+  const remove = async () => {
+    setBusy(true)
+    if (signedIn) {
+      const e = await deleteAccount()
+      if (e) {
+        setErr(e)
+        setBusy(false)
+      }
+    } else {
+      // A guest's whole game lives on this device
+      wipeDevice()
+      location.reload()
+    }
+  }
+  return (
+    <section className="mt-6 border-t border-line pt-4">
+      <h3 className="text-sm font-semibold text-ink-soft">Start over</h3>
+      {err && <p className="mt-2 text-sm text-heart">{err}</p>}
+      {asking ? (
+        <div className="mt-2 rounded-2xl bg-white p-4">
+          <p className="text-sm font-semibold">{asking === 'reset' ? 'Delete everything?' : signedIn ? 'Delete your account?' : 'Delete this game?'}</p>
+          <p className="mt-1 text-sm text-ink-soft">
+            {asking === 'reset'
+              ? 'Your room, furniture, Hearts and clothes go back to the start. Your character and your pets stay.'
+              : signedIn
+                ? `This deletes your account and everything in it, pets included, and removes you from your friends’ lists. It can’t be undone.${inCouple ? ' Break up first, so your partner keeps their half of the jar.' : ''}`
+                : 'This deletes the game on this device, pets included. It can’t be undone.'}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button type="button" onClick={() => (setAsking(null), setErr(''))} className="chunky flex-1 rounded-xl bg-paper py-2.5 text-sm font-semibold">
+              Keep it
+            </button>
+            <button type="button" disabled={busy} onClick={() => (asking === 'reset' ? reset() : void remove())} className="chunky flex-1 rounded-xl bg-heart py-2.5 text-sm font-bold text-white disabled:opacity-60">
+              {busy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-col gap-1">
+          <button type="button" onClick={() => setAsking('reset')} className="flex items-center gap-2 rounded-xl px-2 py-2 text-left text-sm font-semibold text-ink-soft hover:bg-white">
+            <Trash2 className="size-4" aria-hidden /> Delete everything (keeps your pets)
+          </button>
+          <button type="button" onClick={() => setAsking('account')} className="flex items-center gap-2 rounded-xl px-2 py-2 text-left text-sm font-semibold text-heart hover:bg-white">
+            <Trash2 className="size-4" aria-hidden /> {signedIn ? 'Delete my account' : 'Delete this game'}
+          </button>
+        </div>
+      )}
+    </section>
   )
 }

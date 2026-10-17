@@ -1,10 +1,10 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import type { Group, Mesh, MeshBasicMaterial } from 'three'
 import { CELL, DOOR, ROOM, blockedCells, findPath, type Placed } from '../game/grid'
 import { DEFAULT_PROFILE, type Profile } from '../game/look'
-import { isTiny, petHeight, speciesOf, type Pet } from '../game/pets'
+import { isTiny, petHeight, speciesOf, type PetBody } from '../game/pets'
 import { today } from '../game/store'
 import { Guest } from './Avatar'
 import { buildPet } from './petModel'
@@ -29,7 +29,7 @@ function startCell(uid: string, blocked: Set<string>): [number, number] {
 }
 
 /** One pet: wanders between free spots, pauses, and hops a little as it walks */
-function PetActor({ pet, blocked, onTap }: { pet: Pet; blocked: Set<string>; onTap: (uid: string) => void }) {
+function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>; onTap: (uid: string) => void }) {
   const sp = speciesOf(pet)
   const model = useMemo(() => buildPet({ sp, coat: pet.coat, color: pet.color }), [sp, pet.coat, pet.color])
   const day = today()
@@ -92,33 +92,44 @@ function PetActor({ pet, blocked, onTap }: { pet: Pet; blocked: Set<string>; onT
     e.stopPropagation()
     onTap(pet.uid)
   }
+  // The name shows while you point at the pet with the mouse
+  const [hover, setHover] = useState(false)
 
   return (
     <group ref={root}>
-      <group onClick={tap}>
+      <group
+        onClick={tap}
+        onPointerOver={(e) => {
+          if (e.pointerType !== 'mouse') return
+          e.stopPropagation()
+          setHover(true)
+        }}
+        onPointerOut={() => setHover(false)}
+      >
         <primitive object={model} scale={h} />
         {/* A bigger invisible target, so small pets are easy to tap */}
         <mesh position-y={h / 2} visible={false}>
           <boxGeometry args={[Math.max(0.3, h), Math.max(0.3, h), Math.max(0.3, h)]} />
         </mesh>
       </group>
+      {/* Tiny pets glow so they're easy to find */}
       {tiny && (
-        <>
-          <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.01}>
-            <ringGeometry args={[0.16, 0.21, 32]} />
-            <meshBasicMaterial color="#ffd86b" transparent opacity={0.4} depthWrite={false} />
-          </mesh>
-          <Html position={[0, h + 0.14, 0]} center zIndexRange={[12, 0]} style={{ pointerEvents: 'none' }}>
-            <div className="rounded-full bg-cream/90 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap text-ink shadow">{pet.name}</div>
-          </Html>
-        </>
+        <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.01}>
+          <ringGeometry args={[0.16, 0.21, 32]} />
+          <meshBasicMaterial color="#ffd86b" transparent opacity={0.4} depthWrite={false} />
+        </mesh>
+      )}
+      {hover && (
+        <Html position={[0, h + 0.14, 0]} center zIndexRange={[12, 0]} style={{ pointerEvents: 'none' }}>
+          <div className="rounded-full bg-cream/90 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap text-ink shadow">{pet.name}</div>
+        </Html>
       )}
     </group>
   )
 }
 
-/** Your room pets, wandering the studio */
-export function Pets({ pets, placed, onTap }: { pets: Pet[]; placed: Placed[]; onTap: (uid: string) => void }) {
+/** The pets in this room (yours, your partner's, or the host's when visiting), wandering the studio */
+export function Pets({ pets, placed, onTap }: { pets: PetBody[]; placed: Placed[]; onTap: (uid: string) => void }) {
   const blocked = useMemo(() => blockedCells(placed), [placed])
   return (
     <>
@@ -145,7 +156,7 @@ export function Courier({ count, onTap }: { count: number; onTap: () => void }) 
         onTap()
       }}
     >
-      <Guest profile={COURIER} name={`📦 ${count > 1 ? `${count} pets` : 'A pet'} for you!`} x={0.55} z={z} />
+      <Guest profile={COURIER} name={`📦 ${count > 1 ? `${count} pets` : 'A pet'} for you!`} x={0.55} z={z} alwaysName />
       <group ref={box} position={[0.95, 0.12, z + 0.1]}>
         <mesh castShadow>
           <boxGeometry args={[0.26, 0.22, 0.26]} />

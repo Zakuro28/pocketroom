@@ -15,6 +15,7 @@ import {
   type Pet,
   type Tier,
 } from './pets'
+import { BIRTHDAY_GIFT } from './acts'
 import { addBonus, getSave, setSave, today, uid, type Delivery } from './store'
 
 /**
@@ -55,6 +56,17 @@ export function checkDeliveries() {
 
   if (!add.length && spins.day === s.spins.day) return
   setSave((x) => ({ ...x, spins, deliveries: [...x.deliveries, ...add] }))
+}
+
+/** Birthday Hearts, once a year on your birthday. Returns how many arrived (0 if none today). */
+export function checkBirthdayGift() {
+  const s = getSave()
+  const d = today()
+  const year = Number(d.slice(0, 4))
+  if (!s.profile || !isBirthday(s.profile.birthday, d) || s.birthdayGift === year) return 0
+  setSave((x) => ({ ...x, birthdayGift: year }))
+  addBonus(BIRTHDAY_GIFT)
+  return BIRTHDAY_GIFT
 }
 
 export type Roll = { pet: Pet; tier: Tier; delivery: Delivery; full: boolean }

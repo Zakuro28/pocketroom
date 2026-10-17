@@ -211,7 +211,11 @@ export type Pet = {
   place: 'room' | 'foster'
 }
 
-export const speciesOf = (p: Pet) => SPECIES_BY_ID[p.species] ?? SPECIES[0]
+/** What others need to draw one of your pets in your room */
+export type PetBody = Pick<Pet, 'uid' | 'species' | 'name' | 'coat' | 'color' | 'sizeMut' | 'born'>
+export const bodyOf = ({ uid, species, name, coat, color, sizeMut, born }: Pet): PetBody => ({ uid, species, name, coat, color, sizeMut, born })
+
+export const speciesOf = (p: Pick<Pet, 'species'>) => SPECIES_BY_ID[p.species] ?? SPECIES[0]
 export const avgIv = (p: Pet) => p.ivs.reduce((a, b) => a + b, 0) / p.ivs.length
 export const bonusOf = (p: Pet) => (p.color ? MUTATIONS[p.color].bonus : 0) + (p.sizeMut ? MUTATIONS[p.sizeMut].bonus : 0)
 /** Hearts from one day's feeding */
@@ -219,11 +223,11 @@ export const feedHearts = (p: Pet) => Math.round(avgIv(p) * FEED_MULT * (1 + bon
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
 /** Days since it arrived */
-export const ageDays = (p: Pet, today: string) => Math.max(0, daysBetween(p.born, today))
+export const ageDays = (p: Pick<Pet, 'born'>, today: string) => Math.max(0, daysBetween(p.born, today))
 /** 0.55 as a newborn, growing to 1 as an adult */
-export const growth = (p: Pet, today: string) => 0.55 + 0.45 * Math.min(1, ageDays(p, today) / GROW_DAYS)
+export const growth = (p: Pick<Pet, 'born'>, today: string) => 0.55 + 0.45 * Math.min(1, ageDays(p, today) / GROW_DAYS)
 /** Height in the room right now */
-export function petHeight(p: Pet, today: string) {
+export function petHeight(p: PetBody, today: string) {
   const base = speciesOf(p).size
   const mut = p.sizeMut === 'dwarfism' ? 0.6 : p.sizeMut === 'gigantism' ? 1.35 : 1
   // Big animals are scaled down to fit the studio: above 0.45 their extra height counts for a bit more than half
@@ -231,7 +235,7 @@ export function petHeight(p: Pet, today: string) {
   return fitted * growth(p, today) * mut
 }
 /** Small enough to lose in the room: these get a glowing ring and a name tag */
-export const isTiny = (p: Pet, today: string) => petHeight(p, today) < 0.16
+export const isTiny = (p: PetBody, today: string) => petHeight(p, today) < 0.16
 
 // ---- Rolling ----
 

@@ -6,18 +6,16 @@ import { buyClothing, useSave, wear } from '../game/store'
 import { CLOTHES, CLOTHING, RARITY, SLOTS, type Clothing } from '../game/wardrobe'
 import { blip, buyChime, nope } from '../lib/sound'
 import { Preview } from './Creator'
+import { ClothingIcon } from './ClothingIcon'
+import { Slide } from './Slide'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 
-/** A little drawing of a piece of clothing for the closet grid */
+/** A little drawing of a piece of clothing for the closet grid, in its own colors */
 function Swatch({ c }: { c: Clothing }) {
-  const icon: Record<string, string> = { tee: '👕', longsleeve: '🧶', hoodie: '🧥', jacket: '🧥', dress: '👗', pants: '👖', shorts: '🩳', skirt: '👗', sneakers: '👟', boots: '🥾', slippers: '🐰', cap: '🧢', beanie: '🧶', bucket: '👒', crown: '👑', flowers: '🌸', glasses: '👓', shades: '🕶️', headphones: '🎧' }
   return (
-    <span className="relative grid size-full place-items-center rounded-xl" style={{ background: `${c.color}33` }}>
-      <span className="text-3xl" aria-hidden>
-        {icon[c.cut]}
-      </span>
-      <span className="absolute right-1.5 bottom-1.5 size-4 rounded-full ring-2 ring-white" style={{ background: c.color }} aria-hidden />
+    <span className="relative grid size-full place-items-center rounded-xl" style={{ background: `${c.color}26` }}>
+      <ClothingIcon c={c} className="size-[78%]" />
     </span>
   )
 }
@@ -94,9 +92,9 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
               </AnimatePresence>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4 sm:p-5">
               <h2 className="text-xl font-bold">Wardrobe</h2>
-              <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+              <Slide label="Clothing types" className="mt-3 gap-1.5 pb-2">
                 {SLOTS.map((s) => (
                   <button
                     key={s.id}
@@ -110,7 +108,7 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
                     <span aria-hidden>{s.icon}</span> {s.label}
                   </button>
                 ))}
-              </div>
+              </Slide>
               <div className="mt-3 grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] content-start gap-2.5 overflow-y-auto pb-1">
                 {CLOTHES.filter((c) => c.slot === slot).map((c) => {
                   const has = owned.includes(c.id)

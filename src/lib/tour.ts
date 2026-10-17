@@ -2,9 +2,9 @@ import { useSyncExternalStore } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { cancel, guestSpot, me as myself, settle, type Pose } from '../game/character'
 import type { Profile } from '../game/look'
-import { getSave, getSession, setSession, subscribeSave, type RoomView } from '../game/store'
+import { getSave, getSession, roomViewOf, setSession, subscribeSave, type RoomView } from '../game/store'
 import { supabase } from './supa'
-import { getTogether, leaveVisit, notify, otherOf, watchTogether } from './together'
+import { coupleOf, getTogether, leaveVisit, notify, otherOf, watchTogether } from './together'
 
 /**
  * Tours: a live visit. The one who presses Tour hosts in their room; the friend who joins is moved there.
@@ -31,9 +31,11 @@ type TourState = {
   mic: 'off' | 'on' | 'muted'
   /** Their voice: playing, or waiting for a tap (phones only play sound after a tap) */
   hearing: 'none' | 'live' | 'tap'
+  /** Touring a couple's home: the host's partner, who's home too (passed along by the host) */
+  extra: Peer | null
 }
 
-const idle: TourState = { phase: 'idle', tour: null, hosting: false, peer: null, here: false, chat: [], bubbles: {}, mic: 'off', hearing: 'none' }
+const idle: TourState = { phase: 'idle', tour: null, hosting: false, peer: null, here: false, chat: [], bubbles: {}, mic: 'off', hearing: 'none', extra: null }
 let state: TourState = idle
 const listeners = new Set<() => void>()
 const set = (patch: Partial<TourState>) => {
@@ -176,9 +178,30 @@ let roomTimer = 0
 let nextLine = 0
 const bubbleTimers: Record<string, number> = {}
 
-const roomView = (): RoomView => {
+/** Your room as a guest sees it. In a shared home, your partner's pets live here too. */
+function roomView(): RoomView {
   const s = getSave()
-  return { placed: s.placed, floor: s.floor, wall: s.wall }
+  const view = roomViewOf(s)
+  const t = getTogether()
+  const couple = coupleOf(t)
+  const theirs = couple && s.home === couple.id ? (t.cards[otherOf(couple)]?.room?.pets ?? []) : []
+  return { ...view, pets: [...(view.pets ?? []), ...theirs] }
+}
+
+/** Where the host's partner is, for a guest touring a couple's home */
+export const them2 = { x: 0, z: 0, y: 0, rotY: 0, pose: 'stand' as Pose }
+
+// Touring a couple's home: the host passes the guest's moves to their partner (through the home's live
+// channel) and the partner's moves to the guest, so all three see each other.
+type Relay = { moved: (guest: Peer, at: typeof them) => void; gone: () => void }
+let relay: Relay | null = null
+export const setTourRelay = (r: Relay) => void (relay = r)
+
+/** Host only: pass your partner's position (or that they left, with null) to the guest */
+export function relayHousemate(who: Peer | null, at?: typeof them2) {
+  if (state.phase !== 'touring' || !state.hosting || !room || !joined) return
+  if (!who || !at) return say('pos2-gone', {})
+  say('pos2', { x: at.x, z: at.z, y: at.y, rotY: at.rotY, pose: at.pose, who })
 }
 
 function say(event: string, payload: Record<string, unknown>) {
@@ -247,6 +270,16 @@ function join(tour: string, hosting: boolean) {
       if (p.from !== peer.id) return
       Object.assign(them, { x: p.x, z: p.z, y: p.y, rotY: p.rotY, pose: p.pose })
       if (!state.here) set({ here: true })
+      if (hosting) relay?.moved(peer, them)
+    })
+    .on('broadcast', { event: 'pos2' }, ({ payload }) => {
+      const p = payload as typeof them2 & { from: string; who: Peer }
+      if (hosting || p.from !== peer.id) return
+      Object.assign(them2, { x: p.x, z: p.z, y: p.y, rotY: p.rotY, pose: p.pose })
+      if (state.extra?.id !== p.who.id) set({ extra: p.who })
+    })
+    .on('broadcast', { event: 'pos2-gone' }, ({ payload }) => {
+      if (!hosting && (payload as { from: string }).from === peer.id) set({ extra: null })
     })
     .on('broadcast', { event: 'room' }, ({ payload }) => {
       const p = payload as { from: string; room: RoomView }
@@ -299,7 +332,7 @@ function join(tour: string, hosting: boolean) {
     let last = roomView()
     unwatchRoom = subscribeSave(() => {
       const now = roomView()
-      if (now.placed === last.placed && now.floor === last.floor && now.wall === last.wall) return
+      if (now.placed === last.placed && now.floor === last.floor && now.wall === last.wall && JSON.stringify(now.pets) === JSON.stringify(last.pets)) return
       last = now
       clearTimeout(roomTimer)
       roomTimer = window.setTimeout(() => say('room', { room: roomView() }), 300)
@@ -331,6 +364,7 @@ export function end(tell = true) {
   room = null
   joined = false
   const wasGuest = state.phase === 'touring' && !state.hosting
+  if (state.phase === 'touring' && state.hosting) relay?.gone()
   set(idle)
   if (wasGuest) leaveVisit()
 }

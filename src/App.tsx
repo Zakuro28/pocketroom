@@ -17,7 +17,7 @@ import Creator from './ui/Creator'
 import Sky from './ui/Sky'
 import { TourInvites, TourPanel } from './ui/Tour'
 import { AdoptPicker, DeliveryFlow, PetsPanel } from './ui/PetUI'
-import { checkDeliveries } from './game/petActions'
+import { checkBirthdayGift, checkDeliveries } from './game/petActions'
 import { useTour } from './lib/tour'
 
 const EASE = [0.23, 1, 0.32, 1] as const
@@ -64,6 +64,17 @@ export default function App() {
   }, [])
 
   useEffect(() => onNote(say), [say])
+  // Birthday Hearts, once a year (checked now and then, so it arrives even if the game stays open past midnight)
+  const name = profile?.name
+  useEffect(() => {
+    const gift = () => {
+      const n = checkBirthdayGift()
+      if (n) say(`🎂 Happy birthday${name ? `, ${name}` : ''}! +${n.toLocaleString('en-US')} Hearts`)
+    }
+    gift()
+    const id = setInterval(gift, 60_000)
+    return () => clearInterval(id)
+  }, [name, say])
 
   // Tell the player when a pet arrives at the door
   const lastWaiting = useRef(waiting)
@@ -109,7 +120,7 @@ export default function App() {
         </div>
 
         <div className="pointer-events-none absolute inset-0">
-          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} weatherLabel={weatherLabel} />
+          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} weatherLabel={weatherLabel} say={say} />
           {mode === 'play' && <DoingPill />}
           <TourInvites />
 
@@ -162,7 +173,7 @@ export default function App() {
           )}
         </div>
 
-        <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} onCustomize={() => setCustomizing(true)} />
+        <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} onCustomize={() => setCustomizing(true)} say={say} />
         <Closet open={wardrobe} onClose={() => setWardrobe(false)} say={say} />
         <People open={people} onClose={() => setPeople(false)} say={say} />
         <PetsPanel

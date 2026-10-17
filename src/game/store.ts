@@ -6,7 +6,8 @@ import { STARTER } from './starter'
 import { FLOORS, WALLS } from './surfaces'
 import type { Profile, Slot } from './look'
 import { CLOTHING, STARTER_CLOTHES } from './wardrobe'
-import type { Pet, Pity } from './pets'
+import { DEFAULT_OUTFIT } from './look'
+import { bodyOf, type Pet, type PetBody, type Pity } from './pets'
 
 /** A pet waiting at the door: today's free spin, a birthday or monthsary spin, or a seasonal event */
 export type Delivery = { id: string; kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal'; event?: string }
@@ -38,10 +39,13 @@ export type Save = {
   spins: Spins
   /** A new pet that arrived with foster care full: you pick a foster pet to be adopted first */
   adopting: string | null
+  /** The year you last got your birthday Hearts */
+  birthdayGift: number
 }
 
-/** A room as other players see it */
-export type RoomView = { placed: Placed[]; floor: string; wall: string }
+/** A room as other players see it, with the pets living in it */
+export type RoomView = { placed: Placed[]; floor: string; wall: string; pets?: PetBody[] }
+export const roomViewOf = (s: Save): RoomView => ({ placed: s.placed, floor: s.floor, wall: s.wall, pets: s.pets.filter((p) => p.place === 'room').map(bodyOf) })
 
 /** Visiting someone else's room */
 export type Visit = { id: string; name: string; look: Profile | null; room: RoomView }
@@ -90,6 +94,7 @@ const fresh = (): Save => ({
   deliveries: [],
   spins: { day: '', pity: { sinceMythical: 0, sinceDivine: 0 }, birthday: 0, monthsary: '', seasonal: [] },
   adopting: null,
+  birthdayGift: 0,
 })
 
 function load(): Save {
@@ -141,6 +146,9 @@ const subscribe = (l: () => void) => {
   listeners.add(l)
   return () => void listeners.delete(l)
 }
+
+/** Hear about every change to the game or the session (live features use this to follow where you are) */
+export const watchGame = subscribe
 
 export const useSave = <T,>(pick: (s: Save) => T) => useSyncExternalStore(subscribe, () => pick(save))
 export const useSession = <T,>(pick: (s: Session) => T) => useSyncExternalStore(subscribe, () => pick(session))
@@ -286,6 +294,39 @@ export function buyClothing(id: string) {
 /** Put on (or, with null, take off) a piece of clothing. Tops, bottoms and shoes can't be taken off. */
 export function wear(slot: Slot, id: string | null) {
   setSave((s) => (s.profile ? { ...s, profile: { ...s.profile, outfit: { ...s.profile.outfit, [slot]: id } } } : s))
+}
+
+/**
+ * "Delete everything": a fresh start for the room, Hearts and clothes. Your character, your pets and their
+ * deliveries stay. Not while living together, because the room and jar belong to both of you.
+ */
+export function resetProgress() {
+  if (save.home) return false
+  const f = fresh()
+  setSave((s) => ({
+    ...s,
+    placed: f.placed,
+    storage: f.storage,
+    hearts: f.hearts,
+    earnedToday: 0,
+    uses: {},
+    floor: f.floor,
+    wall: f.wall,
+    owned: f.owned,
+    clothes: f.clothes,
+    profile: s.profile ? { ...s.profile, outfit: DEFAULT_OUTFIT } : s.profile,
+  }))
+  setSession((s) => ({ ...s, mode: 'play', selected: null, ghost: null }))
+  return true
+}
+
+/** Forget the game saved on this device (after deleting the account, or a guest starting over) */
+export function wipeDevice() {
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    // Nothing saved here
+  }
 }
 
 /** Swap in a saved game that came from the player's account */

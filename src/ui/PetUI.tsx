@@ -26,6 +26,7 @@ import {
 } from '../game/pets'
 import { today, useSave, type Delivery } from '../game/store'
 import { blip, fanfare, heart, nope, tick } from '../lib/sound'
+import { canSignIn, signInWithGoogle, useUser } from '../lib/auth'
 import { petThumb } from '../scene/petModel'
 
 const EASE = [0.23, 1, 0.32, 1] as const
@@ -170,6 +171,40 @@ function Ivs({ p }: { p: Pet }) {
   )
 }
 
+/** The average IV, front and center: it decides how many Hearts a pet earns */
+function AvgIv({ p, big = false }: { p: Pet; big?: boolean }) {
+  const v = Math.round(avgIv(p))
+  const color = v >= 90 ? '#e6b422' : v >= 75 ? '#5ccf9a' : v >= 60 ? '#4f9cf5' : '#a0938a'
+  return (
+    <div className={`flex items-center gap-2 rounded-2xl bg-white ring-2 ${big ? 'px-4 py-2' : 'px-3 py-1'}`} style={{ ['--tw-ring-color' as string]: color }}>
+      <span className="text-xs font-bold tracking-wide text-ink-soft uppercase">Average IV</span>
+      <span className={`font-bold tabular-nums ${big ? 'text-3xl' : 'text-xl'}`} style={{ color }}>
+        {v}
+      </span>
+    </div>
+  )
+}
+
+/** Pets grow a little every day until they're adults on day 30 */
+function Growth({ p }: { p: Pet }) {
+  const age = ageDays(p, today())
+  const pct = Math.min(1, age / GROW_DAYS)
+  if (pct >= 1) return <p className="text-xs font-semibold text-mint">Fully grown 🎉 · {age} days with you</p>
+  return (
+    <div className="w-full max-w-60">
+      <div className="flex justify-between text-xs font-semibold text-ink-soft">
+        <span>Growing up 🌱</span>
+        <span className="tabular-nums">
+          Day {age + 1} of {GROW_DAYS}
+        </span>
+      </div>
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-line">
+        <div className="h-full rounded-full bg-mint" style={{ width: `${Math.max(4, pct * 100)}%` }} />
+      </div>
+    </div>
+  )
+}
+
 function TierTag({ tier }: { tier: Tier }) {
   return (
     <span className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: TIER_INFO[tier].color }}>
@@ -185,6 +220,9 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
   const adopting = useSave((s) => s.adopting)
   const [roll, setRoll] = useState<Roll | null>(null)
   const [step, setStep] = useState<'door' | 'spin' | 'reveal'>('door')
+  // Pets are for signed-in players only, so nobody can farm them with throwaway guest games
+  const user = useUser()
+  const guest = canSignIn && !user
   const [name, setName] = useState('')
 
   // Closing always comes back to the door next time
@@ -195,6 +233,7 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
   }
 
   const start = (d: Delivery) => {
+    if (guest) return nope()
     blip()
     const r = rollDelivery(d.id)
     if (!r) return nope()
@@ -239,8 +278,23 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
                   📦
                 </p>
                 <h2 className="mt-1 text-xl font-bold">{deliveries.length ? 'A delivery for you!' : 'No deliveries right now'}</h2>
-                <p className="mt-1 text-sm text-ink-soft">{deliveries.length ? 'Roll now, or keep it for later. It waits at the door.' : 'A new pet comes every day. Check back tomorrow!'}</p>
-                <ul className="mt-4 space-y-2">
+                {guest && deliveries.length > 0 ? (
+                  <>
+                    <p className="mt-1 text-sm text-ink-soft">Please sign in to get your pet. Pets live in your account, so they’re safe on any device.</p>
+                    <button type="button" onClick={() => void signInWithGoogle()} className="chunky mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3.5 font-semibold ring-1 ring-line">
+                      <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
+                        <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.8-5.5 3.8-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.1 14.6 2.2 12 2.2 6.6 2.2 2.2 6.6 2.2 12S6.6 21.8 12 21.8c5.7 0 9.4-4 9.4-9.6 0-.6-.1-1.1-.2-1.6H12Z" />
+                      </svg>
+                      Sign in with Google
+                    </button>
+                    <button type="button" onClick={close} className="mt-2 w-full py-2 text-sm font-semibold text-ink-soft">
+                      Later
+                    </button>
+                  </>
+                ) : (
+                  <p className="mt-1 text-sm text-ink-soft">{deliveries.length ? 'Roll now, or keep it for later. It waits at the door.' : 'A new pet comes every day. Check back tomorrow!'}</p>
+                )}
+                <ul className={`mt-4 space-y-2 ${guest ? 'hidden' : ''}`}>
                   {deliveries.map((d) => (
                     <li key={d.id} className="flex items-center gap-3 rounded-2xl bg-white p-3">
                       <Gift className="size-6 shrink-0 text-heart" aria-hidden />
@@ -254,7 +308,7 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
                     </li>
                   ))}
                 </ul>
-                {deliveries.length > 0 && (
+                {deliveries.length > 0 && !guest && (
                   <button type="button" onClick={close} className="mt-3 w-full py-2 text-sm font-semibold text-ink-soft">
                     Later
                   </button>
@@ -282,8 +336,9 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
                   <TierTag tier={roll.tier} />
                 </div>
                 <Mutations p={roll.pet} />
+                <AvgIv p={roll.pet} big />
                 <p className="text-sm text-ink-soft">
-                  Average IV <b className="text-ink tabular-nums">{Math.round(avgIv(roll.pet))}</b> · Feeding pays <b className="text-heart tabular-nums">+{feedHearts(roll.pet)} 💗</b> a day
+                  Feeding pays <b className="text-heart tabular-nums">+{feedHearts(roll.pet)} 💗</b> a day
                 </p>
                 <label className="w-full max-w-xs text-left text-sm font-semibold text-ink-soft">
                   Name
@@ -371,6 +426,7 @@ function PetTile({ p, onClick }: { p: Pet; onClick: () => void }) {
       <span className="absolute inset-x-3 top-0 h-1 rounded-b-full" style={{ background: TIER_INFO[tier].color }} />
       <PetPic {...thumbOf(p)} className="size-20" />
       <span className="w-full truncate text-sm font-semibold">{p.name}</span>
+      <span className="text-[11px] font-bold text-ink tabular-nums">IV {Math.round(avgIv(p))}</span>
       <span className="text-[11px] font-semibold text-ink-soft">
         {(p.color || p.sizeMut) && '🧬 '}
         {p.place === 'room' ? (fed ? 'Fed ✓' : `Feed +${feedHearts(p)}`) : TIER_INFO[tier].label}
@@ -383,7 +439,6 @@ function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: stri
   const pets = useSave((s) => s.pets)
   const sp = speciesOf(p)
   const d = today()
-  const age = ageDays(p, d)
   const fed = p.fed === d
   const [confirm, setConfirm] = useState<string | null>(null)
   const [swapping, setSwapping] = useState(false)
@@ -421,7 +476,8 @@ function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: stri
         <div className="flex items-center gap-2 text-sm text-ink-soft">
           {sp.name} <TierTag tier={sp.tier} />
         </div>
-        <p className="text-xs text-ink-soft">{age >= GROW_DAYS ? `Adult · ${age} days with you` : `Baby · grows up in ${GROW_DAYS - age} day${GROW_DAYS - age === 1 ? '' : 's'}`}</p>
+        <AvgIv p={p} big />
+        <Growth p={p} />
         <Mutations p={p} />
       </div>
 

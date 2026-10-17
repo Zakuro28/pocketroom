@@ -3,7 +3,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { DAILY_CAP } from '../game/acts'
 import { cancel, settle } from '../game/character'
 import type { Profile } from '../game/look'
-import { getSave, getSession, now, setBonusSink, setCap, setSave, setServerTime, setSession, subscribeSave, type RoomView, type Save } from '../game/store'
+import { getSave, getSession, now, roomViewOf, setBonusSink, setCap, setSave, setServerTime, setSession, subscribeSave, type RoomView, type Save } from '../game/store'
 import { send, supabase } from './supa'
 import type { Kind as Sky } from './weather'
 
@@ -72,7 +72,7 @@ function dayIn(tz: string) {
   }
 }
 
-const roomOf = (s: Save): RoomView => ({ placed: s.placed, floor: s.floor, wall: s.wall })
+const roomOf = (s: Save): RoomView => roomViewOf(s)
 const errorText = (e: unknown) => (e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Something went wrong, try again')
 
 // ---- Keeping the game in step with the shared home ----

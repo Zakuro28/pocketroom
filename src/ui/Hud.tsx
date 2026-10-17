@@ -3,8 +3,8 @@ import { AnimatePresence, animate, motion } from 'motion/react'
 import { Check, ChevronDown, PawPrint, Settings, Shirt, Sparkles, Users, X } from 'lucide-react'
 import { ACTS, REWARD_MULT, USES_PER_DAY } from '../game/acts'
 import { ITEMS, type Activity } from '../game/catalog'
-import { cancel } from '../game/character'
-import { styleScore, usePlaced, useSave, useSession } from '../game/store'
+import { cancel, goUse } from '../game/character'
+import { getSession, styleScore, usePlaced, useSave, useSession } from '../game/store'
 import { coupleOf, otherOf, useTogether } from '../lib/together'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -22,7 +22,7 @@ function Rolling({ value }: { value: number }) {
 }
 
 /** Hearts, today's progress toward the daily limit, and the room's style score */
-export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; onPets: () => void; weatherLabel: string | null }) {
+export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel, say }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; onPets: () => void; weatherLabel: string | null; say: (m: string) => void }) {
   const waiting = useSave((s) => s.deliveries.length)
   const hearts = useSave((s) => s.hearts)
   const earned = useSave((s) => s.earnedToday)
@@ -59,7 +59,7 @@ export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel }: 
             <ChevronDown className={`size-3.5 shrink-0 transition-transform duration-200 ${today ? 'rotate-180' : ''}`} aria-hidden />
           </p>
         </button>
-        <AnimatePresence>{today && <TodayList onClose={() => setToday(false)} full={pct >= 1} />}</AnimatePresence>
+        <AnimatePresence>{today && <TodayList onClose={() => setToday(false)} full={pct >= 1} say={say} />}</AnimatePresence>
       </div>
       <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
         {weatherLabel && <span className="hidden rounded-full bg-cream/90 px-3 py-2 text-sm font-medium text-ink-soft shadow-[0_4px_0_rgba(74,52,40,0.1)] sm:block">{weatherLabel}</span>}
@@ -93,11 +93,19 @@ function roomActivities(acts: (Activity | undefined)[]) {
 }
 
 /** Today's checklist: what you've done and what's left, with the Hearts each still pays */
-function TodayList({ onClose, full }: { onClose: () => void; full: boolean }) {
+function TodayList({ onClose, full, say }: { onClose: () => void; full: boolean; say: (m: string) => void }) {
   const placed = usePlaced()
   const uses = useSave((s) => s.uses)
   const list = useMemo(() => roomActivities(placed.map((p) => ITEMS[p.id]?.act)), [placed])
   const done = list.filter((a) => (uses[a] ?? 0) >= USES_PER_DAY).length
+  // Tapping an activity walks your character over to do it (TV time happens on a seat facing the TV)
+  const go = (a: Activity) => {
+    if (getSession().mode !== 'play') return say('Finish decorating first ✨')
+    const item = placed.find((p) => ITEMS[p.id]?.act === a) ?? (a === 'tv' ? placed.find((p) => ITEMS[p.id]?.act === 'sit') : undefined)
+    if (!item) return
+    goUse(item, placed, say)
+    onClose()
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -120,12 +128,19 @@ function TodayList({ onClose, full }: { onClose: () => void; full: boolean }) {
           {done} / {list.length} done
         </p>
       </div>
-      <p className="px-1 pb-2 text-[11px] text-ink-soft">{full ? 'Your hearts are full today 💗 Come back tomorrow!' : `Each one pays once a day, ×${REWARD_MULT} Hearts.`}</p>
+      <p className="px-1 pb-2 text-[11px] text-ink-soft">{full ? 'Your hearts are full today 💗 Come back tomorrow!' : `Tap one to go do it. Each pays once a day, ×${REWARD_MULT} Hearts.`}</p>
       <ul className="max-h-[45dvh] space-y-1 overflow-y-auto">
         {list.map((a) => {
           const finished = (uses[a] ?? 0) >= USES_PER_DAY
           return (
-            <li key={a} className={`flex items-center gap-2.5 rounded-2xl px-2.5 py-1.5 ${finished ? 'bg-[#e6f7ee]' : 'bg-white'}`}>
+            <li key={a}>
+              <button
+                type="button"
+                onClick={() => go(a)}
+                disabled={finished}
+                aria-label={finished ? `${ACTS[a].label}, done today` : `${ACTS[a].label}, go do it for ${ACTS[a].hearts * REWARD_MULT} Hearts`}
+                className={`flex w-full items-center gap-2.5 rounded-2xl px-2.5 py-1.5 text-left transition-transform duration-150 enabled:active:scale-[0.98] ${finished ? 'bg-[#e6f7ee]' : 'bg-white hover:bg-[#fff3f6]'}`}
+              >
               <span className="text-lg" aria-hidden>
                 {ACTS[a].emoji}
               </span>
@@ -137,6 +152,7 @@ function TodayList({ onClose, full }: { onClose: () => void; full: boolean }) {
               ) : (
                 <span className="text-xs font-bold text-heart tabular-nums">+{ACTS[a].hearts * REWARD_MULT}</span>
               )}
+              </button>
             </li>
           )
         })}
