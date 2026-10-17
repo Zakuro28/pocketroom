@@ -10,9 +10,9 @@ import { DEFAULT_OUTFIT } from './look'
 import { bodyOf, type Pet, type PetBody, type Pity } from './pets'
 
 /** A pet waiting at the door: today's free spin, a birthday or monthsary spin, or a seasonal event */
-export type Delivery = { id: string; kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal'; event?: string }
+export type Delivery = { id: string; kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal' | 'gift'; event?: string }
 /** What's been handed out already, so each spin comes once */
-export type Spins = { day: string; pity: Pity; birthday: number; monthsary: string; seasonal: string[] }
+export type Spins = { day: string; pity: Pity; birthday: number; monthsary: string; seasonal: string[]; gift?: number }
 
 /** Everything that's saved: the room, what's in storage, Hearts and today's progress */
 export type Save = {

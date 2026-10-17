@@ -19,6 +19,8 @@ export const MIN_IV: Record<Tier, number> = { common: 40, rare: 50, epic: 60, le
 export const FEED_MULT = 3
 /** Petting is separate from feeding: once a day per pet, (average IV × PET_MULT × (1 + mutation bonuses)) Hearts */
 export const PET_MULT = 2
+/** Gift pets for everyone: raise this number (and publish) to put one extra pet at every player's door, once */
+export const GIFT_ROUND = 1
 /** Days from baby to adult */
 export const GROW_DAYS = 30
 /** Pets living in the room, and in foster care */

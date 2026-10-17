@@ -1,6 +1,7 @@
 import { careDone, coupleCare, coupleOf, getTogether, livingTogether, type Care } from '../lib/together'
 import {
   FOSTER_SLOTS,
+  GIFT_ROUND,
   ROOM_SLOTS,
   SPECIES_BY_ID,
   dailyTier,
@@ -35,6 +36,11 @@ export function checkDeliveries() {
   const add: Delivery[] = []
   const spins = { ...s.spins }
 
+  // A gift pet for everyone, once per gift round (see GIFT_ROUND)
+  if ((spins.gift ?? 0) < GIFT_ROUND) {
+    spins.gift = GIFT_ROUND
+    add.push({ id: uid(), kind: 'gift' })
+  }
   // One free spin a day (an unrolled one waits; they don't pile up)
   if (spins.day < d) {
     spins.day = d
@@ -56,7 +62,7 @@ export function checkDeliveries() {
     add.push({ id: uid(), kind: 'seasonal', event: ev.id })
   }
 
-  if (!add.length && spins.day === s.spins.day) return
+  if (!add.length && spins.day === s.spins.day && spins.gift === s.spins.gift) return
   setSave((x) => ({ ...x, spins, deliveries: [...x.deliveries, ...add] }))
 }
 
@@ -78,7 +84,8 @@ export function rollDelivery(id: string): Roll | null {
   const s = getSave()
   const delivery = s.deliveries.find((x) => x.id === id)
   if (!delivery) return null
-  const daily = delivery.kind === 'daily'
+  // A gift rolls like a daily pet (and counts toward the guarantees)
+  const daily = delivery.kind === 'daily' || delivery.kind === 'gift'
   const tier: Tier = delivery.kind === 'seasonal' ? 'seasonal' : daily ? dailyTier(s.spins.pity) : specialTier()
   const sp = randomSpecies(tier, delivery.event)
   const pet = makePet(sp, today(), uid())

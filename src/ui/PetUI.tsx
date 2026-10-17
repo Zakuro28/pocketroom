@@ -42,6 +42,7 @@ const thumbOf = (p: Pet) => ({ sp: speciesOf(p), coat: p.coat, color: p.color })
 
 function deliveryTitle(d: Delivery) {
   if (d.kind === 'daily') return 'Your daily pet'
+  if (d.kind === 'gift') return 'Gift pet for everyone 🎁'
   if (d.kind === 'birthday') return 'Birthday pet 🎂'
   if (d.kind === 'monthsary') return 'Monthsary pet 💞'
   const ev = EVENTS.find((e) => e.id === d.event)
@@ -50,7 +51,7 @@ function deliveryTitle(d: Delivery) {
 
 function deliveryOdds(d: Delivery) {
   if (d.kind === 'seasonal') return `One of ${speciesIn('seasonal', d.event).map((s) => s.name).join(' or ')}`
-  if (d.kind === 'daily') return 'Any pet, Common to Divine'
+  if (d.kind === 'daily' || d.kind === 'gift') return 'Any pet, Common to Divine'
   return '75% Legendary · 25% Mythical'
 }
 
@@ -96,7 +97,7 @@ function card(tier: Tier, sp: Species): Card {
 function strip(roll: Roll): Card[] {
   const d = roll.delivery
   const filler = () => {
-    const tier: Tier = d.kind === 'seasonal' ? 'seasonal' : d.kind === 'daily' ? randomTier() : specialTier()
+    const tier: Tier = d.kind === 'seasonal' ? 'seasonal' : d.kind === 'daily' || d.kind === 'gift' ? randomTier() : specialTier()
     return card(tier, randomSpecies(tier, d.event))
   }
   return Array.from({ length: LEN }, (_, i) => (i === WIN ? card(roll.tier, speciesOf(roll.pet)) : filler()))
