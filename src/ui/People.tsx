@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, Copy, DoorOpen, Home, Send, X } from 'lucide-react'
+import { Check, Copy, DoorOpen, Footprints, Home, Send, X } from 'lucide-react'
 import { useSave } from '../game/store'
 import { canSignIn, signInWithGoogle, useUser } from '../lib/auth'
 import { blip, nope } from '../lib/sound'
 import { answerRequest, coupleOf, endLink, isAdult, isOnline, otherOf, sendRequest, useTogether, visit, voteHome, type Link, type LinkKind } from '../lib/together'
+import { invite, useTour } from '../lib/tour'
 
 const KINDS: { id: LinkKind; label: string; emoji: string }[] = [
   { id: 'couple', label: 'Couple', emoji: '💞' },
@@ -35,6 +36,7 @@ export default function People({ open, onClose, say }: { open: boolean; onClose:
   const [msg, setMsg] = useState<{ text: string; good: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
+  const inTour = useTour((s) => s.phase !== 'idle')
 
   const me = t.me
   const adult = isAdult(birthday)
@@ -261,6 +263,22 @@ export default function People({ open, onClose, say }: { open: boolean; onClose:
                                 >
                                   <DoorOpen className="size-4" aria-hidden /> Visit
                                 </button>
+                                {/* A live visit to your room: only while they're online */}
+                                {isOnline(c) && (
+                                  <button
+                                    type="button"
+                                    disabled={busy || inTour}
+                                    onClick={() => {
+                                      blip()
+                                      const err = invite({ id: otherOf(l), name: nameOf(l), look: c?.look ?? null })
+                                      if (err) setMsg({ text: err, good: false })
+                                      else onClose()
+                                    }}
+                                    className="chunky flex items-center gap-1.5 rounded-full bg-heart px-3.5 py-2 text-sm font-bold text-white disabled:bg-[#d7cfc4]"
+                                  >
+                                    <Footprints className="size-4" aria-hidden /> Tour
+                                  </button>
+                                )}
                               </>
                             )}
                           </li>

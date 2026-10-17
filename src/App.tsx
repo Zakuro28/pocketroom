@@ -15,6 +15,8 @@ import Closet from './ui/Closet'
 import People from './ui/People'
 import Creator from './ui/Creator'
 import Sky from './ui/Sky'
+import { TourInvites, TourPanel } from './ui/Tour'
+import { useTour } from './lib/tour'
 
 const EASE = [0.23, 1, 0.32, 1] as const
 
@@ -32,6 +34,7 @@ export default function App() {
   const { place, weather, asked, setPlace, useMyLocation, dismiss } = useWeather()
   const [hour, setHour] = useState(() => new Date().getHours())
   const kicked = useKicked()
+  const touring = useTour((t) => t.phase === 'touring')
 
   // A new day resets today's Hearts; the sky follows the clock
   useEffect(() => {
@@ -90,6 +93,7 @@ export default function App() {
         <div className="pointer-events-none absolute inset-0">
           <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} weatherLabel={weatherLabel} />
           {mode === 'play' && <DoingPill />}
+          <TourInvites />
 
           {/* Toasts */}
           <div className="absolute inset-x-0 top-[calc(max(0.75rem,env(safe-area-inset-top))+10rem)] flex flex-col items-center gap-2 sm:top-24" role="status" aria-live="polite">
@@ -110,8 +114,10 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          {/* Bottom: decorate button while playing, the decorating tools while editing */}
-          {visit ? (
+          {/* Bottom: the tour panel on a tour, decorate button while playing, the decorating tools while editing */}
+          {touring ? (
+            <TourPanel />
+          ) : visit ? (
             <div className="absolute inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] flex justify-center px-4">
               <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-cream py-2 pr-2 pl-5 shadow-[0_5px_0_rgba(74,52,40,0.14)] ring-2 ring-white">
                 <p className="min-w-0 truncate font-semibold">Visiting {visit.name}’s room</p>

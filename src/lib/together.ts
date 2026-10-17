@@ -35,6 +35,11 @@ const subscribe = (l: () => void) => {
 }
 export const useTogether = <T,>(pick: (s: State) => T) => useSyncExternalStore(subscribe, () => pick(state))
 export const getTogether = () => state
+// Local testing only (npm run dev): lets a test pretend to be signed in. Never in the live build.
+if (import.meta.env.DEV) (window as unknown as { __together: unknown }).__together = { set: (p: Partial<State>) => set(p) }
+
+/** Hear about every change (tours use this to follow sign-in and sign-out) */
+export const watchTogether = subscribe
 
 // Messages for the player (shown as toasts by the app)
 const notes = new Set<(msg: string) => void>()
@@ -43,6 +48,7 @@ export const onNote = (fn: (msg: string) => void) => {
   return () => void notes.delete(fn)
 }
 const note = (msg: string) => notes.forEach((n) => n(msg))
+export const notify = note
 
 // ---- Who's who ----
 

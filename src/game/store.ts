@@ -95,8 +95,11 @@ let timer = 0
 const emit = () => listeners.forEach((l) => l())
 
 const saveWatchers = new Set<() => void>()
-/** Hear about every change to the saved game (cloud sync uses this) */
-export const subscribeSave = (fn: () => void) => void saveWatchers.add(fn)
+/** Hear about every change to the saved game (cloud sync uses this). Returns a function that stops listening. */
+export const subscribeSave = (fn: () => void) => {
+  saveWatchers.add(fn)
+  return () => void saveWatchers.delete(fn)
+}
 
 export function setSave(fn: (s: Save) => Save) {
   save = fn(save)

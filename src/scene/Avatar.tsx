@@ -5,6 +5,8 @@ import type { Group, Mesh } from 'three'
 import { me, step, type Pose } from '../game/character'
 import { BUILDS, DEFAULT_PROFILE, gameHeight, heightScale, type HairStyle, type Profile } from '../game/look'
 import { useSave } from '../game/store'
+import { useTogether } from '../lib/together'
+import { them, useTour } from '../lib/tour'
 import { CLOTHING, type Clothing } from '../game/wardrobe'
 
 type Rig = {
@@ -471,7 +473,7 @@ function Body({ p, height, drive }: { p: Profile; height: number; drive: Drive }
 type HeartPop = { id: number; n: number }
 
 /** In the room the game decides the pose; in previews the character waves every few seconds */
-const avatarDrive: Drive = () => ({ pose: me.pose, walking: me.pose === 'walk' && me.path.length > 0 })
+const avatarDrive: Drive = () => ({ pose: me.pose, walking: me.pose === 'walk' })
 const previewDrive: Drive = (t) => ({ pose: t % 6 < 1.4 ? 'wave' : 'stand', walking: false })
 
 /** Your character in the room: driven by the game (walking, using furniture, hearts popping up) */
@@ -506,6 +508,7 @@ export default function Avatar() {
         <meshBasicMaterial color="#000" transparent opacity={0.16} depthWrite={false} />
       </mesh>
       <Body p={profile} height={height} drive={avatarDrive} />
+      <Bubble y={1.18} />
       {pops.map((p) => (
         <Html key={p.id} position={[0, 1.05, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
           <div className="heart-pop">+{p.n} 💗</div>
@@ -545,6 +548,54 @@ export function Guest({ profile, name, x, z }: { profile: Profile; name: string;
       <Html position={[0, 1.02, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
         <div className="rounded-full bg-cream/95 px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink shadow">{name}</div>
       </Html>
+    </group>
+  )
+}
+
+/** What someone just said in a tour, over their head (yours when `of` is left out) */
+function Bubble({ of, y }: { of?: string; y: number }) {
+  const mine = useTogether((t) => t.me)
+  const who = of ?? mine
+  const text = useTour((s) => (who ? s.bubbles[who] : undefined))
+  if (!text) return null
+  return (
+    <Html position={[0, y, 0]} center zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}>
+      <div className="max-w-48 rounded-2xl bg-white px-3 py-1.5 text-center text-xs font-semibold break-words text-ink shadow-md">{text}</div>
+    </Html>
+  )
+}
+
+const remoteDrive: Drive = () => ({ pose: them.pose, walking: them.pose === 'walk' })
+
+/** The other player on a tour: walks, sits and naps live, glided smoothly between updates */
+export function Remote({ id, profile, name }: { id: string; profile: Profile; name: string }) {
+  const root = useRef<Group>(null)
+  const shadow = useRef<Mesh>(null)
+  const placed = useRef(false)
+  useFrame((_, dt) => {
+    const r = root.current
+    if (!r) return
+    // Jump there the first time, then glide (updates arrive about ten times a second)
+    const k = placed.current ? Math.min(1, dt * 12) : 1
+    placed.current = true
+    r.position.x += (them.x - r.position.x) * k
+    r.position.y += (them.y - r.position.y) * k
+    r.position.z += (them.z - r.position.z) * k
+    const diff = ((them.rotY - r.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI
+    r.rotation.y += diff * Math.min(1, dt * 12)
+    if (shadow.current) shadow.current.visible = them.pose !== 'lie' && them.y === 0
+  })
+  return (
+    <group ref={root} scale={1.25}>
+      <mesh ref={shadow} rotation-x={-Math.PI / 2} position-y={0.008}>
+        <circleGeometry args={[0.17, 24]} />
+        <meshBasicMaterial color="#000" transparent opacity={0.16} depthWrite={false} />
+      </mesh>
+      <Body p={profile} height={gameHeight(profile)} drive={remoteDrive} />
+      <Html position={[0, 1.02, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="rounded-full bg-cream/95 px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink shadow">{name}</div>
+      </Html>
+      <Bubble of={id} y={1.22} />
     </group>
   )
 }

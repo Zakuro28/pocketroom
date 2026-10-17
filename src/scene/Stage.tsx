@@ -7,8 +7,9 @@ import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
 import { getSession, setSession, usePlaced, useSave, useSession } from '../game/store'
 import { bindKeys, goUse, guestSpot, settle, walkTo } from '../game/character'
 import { coupleOf, isOnline, otherOf, useTogether } from '../lib/together'
+import { useTour } from '../lib/tour'
 import { blip } from '../lib/sound'
-import Avatar, { Guest } from './Avatar'
+import Avatar, { Guest, Remote } from './Avatar'
 import { Ghost, PlacedItem } from './Furniture'
 import Placer from './Placer'
 import Room from './Room'
@@ -82,7 +83,10 @@ export default function Stage({ say, sky }: { say: (msg: string) => void; sky: s
     const card = c && living === c.id && !visit ? t.cards[otherOf(c)] : undefined
     return card && isOnline(card) && card.look ? card : null
   })
-  const guest = visit ? (visit.look ? { look: visit.look, name: visit.name } : null) : partner ? { look: partner.look!, name: partner.name } : null
+  // On a tour the other player walks around live instead of standing still
+  const touring = useTour((t) => (t.phase === 'touring' && t.here && t.peer?.look ? t.peer : null))
+  const host = visit && touring && visit.id === touring.id
+  const guest = host ? null : visit ? (visit.look ? { look: visit.look, name: visit.name } : null) : partner ? { look: partner.look!, name: partner.name } : null
   const spot = useMemo(() => guestSpot(placed), [placed])
   const selected = useSession((s) => s.selected)
   const ghost = useSession((s) => s.ghost)
@@ -144,6 +148,7 @@ export default function Stage({ say, sky }: { say: (msg: string) => void; sky: s
         {ghost && <Ghost g={ghost} all={placed} />}
         <Avatar />
         {guest && <Guest profile={guest.look} name={guest.name} x={spot.x} z={spot.z} />}
+        {touring && <Remote id={touring.id} profile={touring.look!} name={touring.name} />}
       </Suspense>
       {mode === 'edit' && ghost && <Placer />}
     </Canvas>
