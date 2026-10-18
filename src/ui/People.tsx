@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Copy, DoorOpen, Footprints, Home, Send, X } from 'lucide-react'
-import { useSave } from '../game/store'
+import { today, useSave } from '../game/store'
 import { canSignIn, signInWithGoogle, useUser } from '../lib/auth'
 import { blip, nope } from '../lib/sound'
 import { answerRequest, coupleOf, endLink, isAdult, isOnline, otherOf, sendRequest, useTogether, visit, voteHome, type Link, type LinkKind } from '../lib/together'
@@ -36,6 +36,7 @@ export default function People({ open, onClose, say }: { open: boolean; onClose:
   const [msg, setMsg] = useState<{ text: string; good: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
+  const [anniversary, setAnniversaryDate] = useState('')
   const inTour = useTour((s) => s.phase !== 'idle')
 
   const me = t.me
@@ -138,12 +139,25 @@ export default function People({ open, onClose, say }: { open: boolean; onClose:
                     })}
                   </div>
                   {!adult && <p className="mt-1.5 text-xs text-ink-soft">Couples are for ages 18 and up.</p>}
+                  {kind === 'couple' && (
+                    <label className="mt-2 block text-sm font-semibold text-ink-soft">
+                      When’s your anniversary? 💞
+                      <input
+                        type="date"
+                        value={anniversary}
+                        max={today()}
+                        onChange={(e) => setAnniversaryDate(e.target.value)}
+                        className="mt-1 w-full rounded-2xl bg-white px-4 py-3 text-base text-ink ring-2 ring-line outline-none focus:ring-sun"
+                      />
+                      <span className="mt-1 block text-xs font-normal">You’ll both get a monthsary pet on this day every month.</span>
+                    </label>
+                  )}
                   <form
                     className="mt-2 flex gap-2"
                     onSubmit={(e) => {
                       e.preventDefault()
                       if (code.trim().length < 6) return
-                      void run(() => sendRequest(code, kind), 'Request sent! They’ll see it next time they play').then((ok) => ok && setCode(''))
+                      void run(() => sendRequest(code, kind, kind === 'couple' ? anniversary : undefined), 'Request sent! They’ll see it next time they play').then((ok) => ok && setCode(''))
                     }}
                   >
                     <input

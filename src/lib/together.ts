@@ -18,7 +18,7 @@ export const COUPLE_CAP = Number.POSITIVE_INFINITY
 
 export type SharedWeather = { kind: Sky; isDay: boolean; temp: number; place: string | null }
 export type Card = { id: string; code: string; name: string; birthday: string | null; look: Profile | null; room: RoomView | null; weather: SharedWeather | null; seen_at: string }
-export type Link = { id: string; a: string; b: string; kind: LinkKind; status: 'pending' | 'active' | 'ended'; vote_a: string | null; vote_b: string | null; created_at: string; started_at: string | null; ended_at: string | null }
+export type Link = { id: string; a: string; b: string; kind: LinkKind; status: 'pending' | 'active' | 'ended'; vote_a: string | null; vote_b: string | null; created_at: string; started_at: string | null; ended_at: string | null; anniversary?: string | null }
 type HomeRoom = RoomView & { owned: string[]; storage: Record<string, number> }
 export type Home = { link: string; owner: string; room: HomeRoom; room_by: string | null; tz: string; jar: number; day: string | null; earned: number; chem: number; care?: Record<string, string> }
 
@@ -360,7 +360,16 @@ async function call(fn: string, args: Record<string, unknown>) {
   return error ? errorText(error) : null
 }
 
-export const sendRequest = (code: string, kind: LinkKind) => call('send_request', { p_code: code, p_kind: kind })
+/** Ask someone to be your couple, friend or family. A couple can include their anniversary (for monthsary pets). */
+export async function sendRequest(code: string, kind: LinkKind, anniversary?: string) {
+  if (!supabase) return 'Sign in first'
+  const { data, error } = await supabase.rpc('send_request', { p_code: code, p_kind: kind })
+  if (!error && kind === 'couple' && anniversary) await supabase.rpc('set_anniversary', { p_link: data as string, p_date: anniversary })
+  await refresh()
+  return error ? errorText(error) : null
+}
+/** The day a couple got together: their monthsary pet comes on this day every month */
+export const setAnniversary = (link: string, date: string) => call('set_anniversary', { p_link: link, p_date: date })
 export const answerRequest = (link: string, accept: boolean) => call('answer_request', { p_link: link, p_accept: accept })
 /** Cancel a request, remove a friend, or break up */
 export const endLink = (link: string) => call('end_link', { p_link: link })

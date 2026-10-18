@@ -51,7 +51,8 @@ export function checkDeliveries() {
     add.push({ id: uid(), kind: 'birthday' })
   }
   const couple = coupleOf(getTogether())
-  if (couple && isMonthsary(couple.started_at, d) && spins.monthsary !== d.slice(0, 7)) {
+  // Monthsary: every month on the couple's anniversary (or the day they became a couple, if none is set)
+  if (couple && isMonthsary(couple.anniversary || couple.started_at, d) && spins.monthsary !== d.slice(0, 7)) {
     spins.monthsary = d.slice(0, 7)
     add.push({ id: uid(), kind: 'monthsary' })
   }

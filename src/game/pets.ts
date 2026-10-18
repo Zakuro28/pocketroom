@@ -11,8 +11,8 @@ export type Tier = 'common' | 'rare' | 'epic' | 'legendary' | 'mythical' | 'divi
 export const DROP: Record<Exclude<Tier, 'seasonal'>, number> = { common: 45, rare: 28, epic: 16, legendary: 7, mythical: 3, divine: 1 }
 /** Guarantees: the 7th daily spin without a Mythical (or better) is a Mythical; the 30th without a Divine is a Divine */
 export const PITY = { mythical: 7, divine: 30 }
-/** Birthday and monthsary spins */
-export const SPECIAL_DROP = { legendary: 75, mythical: 25 }
+/** Birthday and monthsary spins, in percent */
+export const SPECIAL_DROP = { legendary: 60, mythical: 30, divine: 10 }
 /** Lowest IV a pet of each tier can roll (IVs go up to 100) */
 export const MIN_IV: Record<Tier, number> = { common: 40, rare: 50, epic: 60, legendary: 70, mythical: 80, divine: 90, seasonal: 60 }
 /** Feeding pays (average IV × FEED_MULT × (1 + mutation bonuses)) Hearts, once a day per pet */

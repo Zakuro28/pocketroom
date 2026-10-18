@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { LocateFixed, LogOut, MapPin, Search, Trash2, UserRound, Volume2, VolumeX, X } from 'lucide-react'
 import { canSignIn, deleteAccount, signInWithGoogle, signOut, useUser } from '../lib/auth'
-import { resetProgress, setMuted, useSave, wipeDevice } from '../game/store'
-import { coupleOf, endLink, otherOf, useTogether } from '../lib/together'
+import { resetProgress, setMuted, today, useSave, wipeDevice } from '../game/store'
+import { coupleOf, endLink, otherOf, setAnniversary, useTogether } from '../lib/together'
 import { searchCity, type Place } from '../lib/weather'
 
 /** City search with "use my location", shared by settings and the first-visit weather prompt */
@@ -132,6 +132,23 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
             {couple && (
               <div className="mt-3 rounded-2xl bg-white p-4">
                 <p className="font-semibold">💞 In a couple with {partner}</p>
+                {/* The anniversary: a monthsary pet comes on this day every month */}
+                <label className="mt-2 block text-sm text-ink-soft">
+                  Anniversary
+                  <input
+                    type="date"
+                    key={couple.anniversary ?? 'none'}
+                    defaultValue={couple.anniversary ?? ''}
+                    max={today()}
+                    onChange={async (e) => {
+                      if (!e.target.value) return
+                      const err = await setAnniversary(couple.id, e.target.value)
+                      setBreakErr(err ?? '')
+                      if (!err) say('Anniversary saved 💞 A monthsary pet comes on this day every month')
+                    }}
+                    className="mt-1 w-full rounded-xl bg-paper px-3 py-2 text-base text-ink outline-none focus:ring-2 focus:ring-sun"
+                  />
+                </label>
                 {breaking ? (
                   <>
                     <p className="mt-1 text-sm text-ink-soft">You’ll both keep a copy of the room and half the Hearts jar. After a breakup there’s a 1-month wait before a new couple.</p>

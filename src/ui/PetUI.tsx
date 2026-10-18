@@ -10,6 +10,7 @@ import {
   IV_NAMES,
   MUTATIONS,
   ROOM_SLOTS,
+  SPECIAL_DROP,
   STORK,
   TIER_INFO,
   ageDays,
@@ -52,7 +53,7 @@ function deliveryTitle(d: Delivery) {
 function deliveryOdds(d: Delivery) {
   if (d.kind === 'seasonal') return `One of ${speciesIn('seasonal', d.event).map((s) => s.name).join(' or ')}`
   if (d.kind === 'daily' || d.kind === 'gift') return 'Any pet, Common to Divine'
-  return '75% Legendary · 25% Mythical'
+  return `${SPECIAL_DROP.legendary}% Legendary · ${SPECIAL_DROP.mythical}% Mythical · ${SPECIAL_DROP.divine}% Divine`
 }
 
 /** Time left until the next daily pet: it arrives at midnight, by the game's clock */
