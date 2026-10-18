@@ -60,7 +60,7 @@ export function PlacePicker({ onPick, onLocate }: { onPick: (p: Place) => void; 
   )
 }
 
-export default function Settings({ open, onClose, place, onPick, onLocate, onCustomize, say }: { open: boolean; onClose: () => void; place: Place | null; onPick: (p: Place) => void; onLocate: () => Promise<boolean>; onCustomize: () => void; say: (m: string) => void }) {
+export default function Settings({ open, onClose, place, onPick, onLocate, onCustomize, say, onNotes }: { open: boolean; onClose: () => void; place: Place | null; onPick: (p: Place) => void; onLocate: () => Promise<boolean>; onCustomize: () => void; say: (m: string) => void; onNotes: (page: 'updates' | 'about') => void }) {
   const muted = useSave((s) => s.muted)
   const user = useUser()
   const couple = useTogether((t) => coupleOf(t))
@@ -128,6 +128,29 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
             >
               ✨ Edit my character
             </button>
+            {/* About the game, and every update's patch notes */}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose()
+                  onNotes('about')
+                }}
+                className="chunky rounded-2xl bg-white px-3 py-3 text-sm font-semibold"
+              >
+                📖 About PocketRoom
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose()
+                  onNotes('updates')
+                }}
+                className="chunky rounded-2xl bg-white px-3 py-3 text-sm font-semibold"
+              >
+                📰 Updates
+              </button>
+            </div>
             {/* Relationship: a couple is a contract, so breaking up comes with a 1-month wait */}
             {couple && (
               <div className="mt-3 rounded-2xl bg-white p-4">

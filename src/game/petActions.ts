@@ -1,5 +1,6 @@
 import { careDone, coupleCare, coupleOf, getTogether, livingTogether, type Care } from '../lib/together'
 import {
+  EVENTS,
   FOSTER_SLOTS,
   GIFT_ROUND,
   ROOM_SLOTS,
@@ -63,6 +64,7 @@ export function checkDeliveries() {
     add.push({ id: uid(), kind: 'seasonal', event: ev.id })
   }
 
+  add.push(...testDeliveries([...s.deliveries, ...add]))
   if (!add.length && spins.day === s.spins.day && spins.gift === s.spins.gift) return
   setSave((x) => ({ ...x, spins, deliveries: [...x.deliveries, ...add] }))
 }
@@ -101,7 +103,18 @@ export function rollDelivery(id: string): Roll | null {
     spins: { ...x.spins, pity: nextPity(x.spins.pity, tier, daily) },
     adopting: full ? pet.uid : x.adopting,
   }))
+  // Local testing: put the next one of each kind at the door straight away
+  if (import.meta.env.DEV) checkDeliveries()
   return { pet, tier, delivery, full }
+}
+
+/** Local testing only (npm run dev): one of every kind of delivery is always waiting. Never in the live build. */
+function testDeliveries(have: Delivery[]): Delivery[] {
+  if (!import.meta.env.DEV) return []
+  const kinds: Delivery['kind'][] = ['daily', 'birthday', 'monthsary', 'seasonal']
+  return kinds
+    .filter((k) => !have.some((d) => d.kind === k))
+    .map((k) => ({ id: uid(), kind: k, ...(k === 'seasonal' ? { event: EVENTS[Math.floor(Math.random() * EVENTS.length)].id } : {}) }))
 }
 
 /** Foster care was full: this foster pet is adopted by a new family and leaves */

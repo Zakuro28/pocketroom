@@ -43,6 +43,8 @@ export type Save = {
   birthdayGift: number
   /** The account this game belongs to (null: a guest game on this device) */
   owner?: string | null
+  /** The newest patch notes this player has read (see src/game/updates.ts) */
+  seenVersion?: string
 }
 
 /** A room as other players see it, with the pets living in it */

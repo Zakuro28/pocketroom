@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { Check, House, Paintbrush } from 'lucide-react'
 import { cancel } from './game/character'
-import { rollDay, setProfile, setSession, useSave, useSession } from './game/store'
+import { rollDay, setProfile, setSession, useSave, useSession, setSave } from './game/store'
 import { canSignIn, playAsGuest, signInWithGoogle, useAuthReady, useKicked, useSaveLoading, useUser } from './lib/auth'
 import Welcome from './ui/Welcome'
+import Notes from './ui/Notes'
+import { CURRENT_VERSION } from './game/updates'
 import { blip } from './lib/sound'
 import { coupleOf, leaveVisit, onNote, otherOf, shareWeather, useTogether } from './lib/together'
 import { skyColors, useWeather } from './lib/weather'
@@ -43,6 +45,11 @@ export default function App() {
   const [asGuest, setAsGuest] = useState(false)
   const welcome = !profile && !user && canSignIn && authReady && !asGuest
   const loadingSave = useSaveLoading()
+  // Patch notes: new ones open by themselves once (remembered in the saved game); Settings opens them any time
+  const seenVersion = useSave((s) => s.seenVersion)
+  const [notesPage, setNotesPage] = useState<'updates' | 'about' | null>(null)
+  const newNotes = !!profile && !welcome && !loadingSave && !customizing && seenVersion !== CURRENT_VERSION
+  const shownNotes = notesPage ?? (newNotes ? 'updates' : null)
   const touring = useTour((t) => t.phase === 'touring')
   const [pets, setPets] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
   const [delivering, setDelivering] = useState(false)
@@ -180,7 +187,7 @@ export default function App() {
           )}
         </div>
 
-        <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} onCustomize={() => setCustomizing(true)} say={say} />
+        <Settings open={settings} onClose={() => setSettings(false)} place={place} onPick={setPlace} onLocate={useMyLocation} onCustomize={() => setCustomizing(true)} say={say} onNotes={setNotesPage} />
         <Closet open={wardrobe} onClose={() => setWardrobe(false)} say={say} />
         <People open={people} onClose={() => setPeople(false)} say={say} />
         <PetsPanel
@@ -195,6 +202,13 @@ export default function App() {
         />
         <DeliveryFlow open={delivering} onClose={() => setDelivering(false)} say={say} />
         <AdoptPicker say={say} />
+        <Notes
+          page={shownNotes}
+          onClose={() => {
+            setNotesPage(null)
+            if (seenVersion !== CURRENT_VERSION) setSave((s) => ({ ...s, seenVersion: CURRENT_VERSION }))
+          }}
+        />
 
         {/* New players make their character first; Settings can reopen this to change it */}
         {welcome && <Welcome onGuest={() => setAsGuest(true)} />}
