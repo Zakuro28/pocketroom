@@ -4,7 +4,8 @@ import { me as myself, type Pose } from '../game/character'
 import { getSave, getSession, watchGame } from '../game/store'
 import { supabase } from './supa'
 import { coupleOf, getTogether, otherOf, watchTogether } from './together'
-import { getTour, relayHousemate, setTourRelay, type Peer } from './tour'
+import { getTour, relayHousemate, setTourRelay, showBubble, type Peer } from './tour'
+import { createVoice, type Hearing, type Mic, type Signal, type Voice } from './voice'
 
 /**
  * A couple at home together sees each other move live: walking, sitting, napping.
@@ -56,6 +57,61 @@ function partnerPeer(id: string): Peer {
   return { id, name: c?.name || 'Partner', look: c?.look ?? null }
 }
 
+// ---- Talking at home: chat and voice while you're both in the shared home ----
+
+export type HomeLine = { id: number; mine: boolean; text: string }
+type Talk = { lines: HomeLine[]; unread: number; mic: Mic; hearing: Hearing }
+let talk: Talk = { lines: [], unread: 0, mic: 'off', hearing: 'none' }
+const talkListeners = new Set<() => void>()
+const setTalk = (patch: Partial<Talk>) => {
+  talk = { ...talk, ...patch }
+  talkListeners.forEach((l) => l())
+}
+export const useHomeTalk = <T,>(pick: (t: Talk) => T) =>
+  useSyncExternalStore(
+    (l) => {
+      talkListeners.add(l)
+      return () => void talkListeners.delete(l)
+    },
+    () => pick(talk),
+  )
+let nextLine = 0
+let voice: Voice | null = null
+let chatOpen = false
+const MAX_CHAT = 200
+
+/** Send a chat message to your partner */
+export function homeChat(text: string) {
+  const t = text.trim().slice(0, MAX_CHAT)
+  const me = getTogether().me
+  if (!t || !channel || !connected || !me) return
+  void channel.send({ type: 'broadcast', event: 'chat', payload: { text: t, from: me } })
+  setTalk({ lines: [...talk.lines.slice(-49), { id: nextLine++, mine: true, text: t }] })
+  showBubble(me, t)
+}
+
+/** The chat window opened or closed (new messages count as unread only while it's closed) */
+export function setChatOpen(open: boolean) {
+  chatOpen = open
+  if (open && talk.unread) setTalk({ unread: 0 })
+}
+
+/** Turn your microphone on, or mute and unmute it */
+export async function homeMic() {
+  if (!voice) return false
+  const mic = await voice.toggleMic()
+  if (mic) setTalk({ mic })
+  return !!mic
+}
+
+export const homeHear = () => voice?.hear()
+
+function stopTalking() {
+  voice?.stop()
+  voice = null
+  setTalk({ mic: 'off', hearing: 'none' })
+}
+
 let channel: RealtimeChannel | null = null
 let joinedFor: string | null = null
 let connected = false
@@ -83,6 +139,7 @@ function leave() {
   connected = false
   setHere(false)
   setVisitor(null)
+  stopTalking()
 }
 
 function join(link: string, me: string, partner: string) {
@@ -112,6 +169,20 @@ function join(link: string, me: string, partner: string) {
       setHere(false)
       setVisitor(null)
       relayHousemate(null)
+      // They left: hang up, ready for a fresh call when they're back
+      stopTalking()
+      voice = createVoice({ send: sendSignal, polite: me < partner, onHearing: (hearing) => setTalk({ hearing }) })
+    })
+    .on('broadcast', { event: 'chat' }, ({ payload }) => {
+      const p = payload as { from: string; text: string }
+      if (p.from !== partner) return
+      const text = String(p.text).slice(0, MAX_CHAT)
+      setTalk({ lines: [...talk.lines.slice(-49), { id: nextLine++, mine: false, text }], unread: chatOpen ? 0 : talk.unread + 1 })
+      showBubble(partner, text)
+    })
+    .on('broadcast', { event: 'rtc' }, ({ payload }) => {
+      const p = payload as { from: string } & Signal
+      if (p.from === partner) void voice?.onSignal(p)
     })
     .subscribe((status) => {
       if (status !== 'SUBSCRIBED' || !channel) return
@@ -121,6 +192,12 @@ function join(link: string, me: string, partner: string) {
     })
   clearInterval(posTimer)
   posTimer = window.setInterval(sendPos, 100)
+  // Voice: the partner whose id sorts first gives way if both start talking at the same moment
+  voice = createVoice({ send: sendSignal, polite: me < partner, onHearing: (hearing) => setTalk({ hearing }) })
+}
+
+function sendSignal(sig: Signal) {
+  if (channel && connected) void channel.send({ type: 'broadcast', event: 'rtc', payload: { ...sig, from: getTogether().me } })
 }
 
 /** Be in the couple's channel exactly while you're in the shared home */

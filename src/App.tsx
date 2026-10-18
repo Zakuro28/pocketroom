@@ -6,6 +6,8 @@ import { rollDay, setProfile, setSession, useSave, useSession, setSave } from '.
 import { canSignIn, playAsGuest, signInWithGoogle, useAuthReady, useKicked, useSaveLoading, useUser } from './lib/auth'
 import Welcome from './ui/Welcome'
 import Notes from './ui/Notes'
+import { HomeChat } from './ui/HomeChat'
+import { usePartnerHere } from './lib/homeLive'
 import { CURRENT_VERSION } from './game/updates'
 import { blip } from './lib/sound'
 import { coupleOf, leaveVisit, onNote, otherOf, shareWeather, useTogether } from './lib/together'
@@ -51,6 +53,12 @@ export default function App() {
   const newNotes = !!profile && !welcome && !loadingSave && !customizing && seenVersion !== CURRENT_VERSION
   const shownNotes = notesPage ?? (newNotes ? 'updates' : null)
   const touring = useTour((t) => t.phase === 'touring')
+  // Living together with your partner home too: chat and voice are right there
+  const partnerHere = usePartnerHere()
+  const partnerName = useTogether((t) => {
+    const c = coupleOf(t)
+    return c && c.id === living ? t.cards[otherOf(c)]?.name || 'Partner' : null
+  })
   const [pets, setPets] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
   const [delivering, setDelivering] = useState(false)
   const waiting = useSave((s) => s.deliveries.length)
@@ -136,6 +144,7 @@ export default function App() {
         <div className="pointer-events-none absolute inset-0">
           <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} weatherLabel={weatherLabel} say={say} />
           {mode === 'play' && <DoingPill />}
+          {mode === 'play' && !visit && !touring && partnerHere && partnerName && <HomeChat partner={partnerName} say={say} />}
           <TourInvites />
 
           {/* Toasts */}

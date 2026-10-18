@@ -6,6 +6,7 @@ import type { PetBody } from '../game/pets'
 import { CELL, DOOR } from '../game/grid'
 import { getSave, getSession, roomViewOf, setSession, subscribeSave, type RoomView } from '../game/store'
 import { supabase } from './supa'
+import { createVoice, type Signal, type Voice } from './voice'
 import { coupleOf, getTogether, leaveVisit, notify, otherOf, watchTogether } from './together'
 
 /**
@@ -226,7 +227,8 @@ function sendPos(force = false) {
   say('pos', p)
 }
 
-function showBubble(id: string, text: string) {
+/** Show what someone said over their head for a few seconds (tours and the shared home both use this) */
+export function showBubble(id: string, text: string) {
   set({ bubbles: { ...state.bubbles, [id]: text } })
   clearTimeout(bubbleTimers[id])
   bubbleTimers[id] = window.setTimeout(() => {
@@ -300,7 +302,7 @@ function join(tour: string, hosting: boolean) {
     })
     .on('broadcast', { event: 'rtc' }, ({ payload }) => {
       const p = payload as { from: string } & Signal
-      if (p.from === peer.id) void onSignal(p)
+      if (p.from === peer.id) void voice?.onSignal(p)
     })
     .on('broadcast', { event: 'bye' }, ({ payload }) => {
       if ((payload as { from: string }).from !== peer.id) return
@@ -341,7 +343,7 @@ function join(tour: string, hosting: boolean) {
       roomTimer = window.setTimeout(() => say('room', { room: roomView() }), 300)
     })
   }
-  polite = !hosting
+  voice = createVoice({ send: (sig) => say('rtc', sig), polite: !hosting, onHearing: (hearing) => set({ hearing }) })
 }
 
 /** Send a chat line */
@@ -372,102 +374,24 @@ export function end(tell = true) {
   if (wasGuest) leaveVisit()
 }
 
-// ---- Voice: straight between the two players ----
+// ---- Voice: straight between the two players (see voice.ts) ----
 
-type Signal = { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }
-
-let pc: RTCPeerConnection | null = null
-let stream: MediaStream | null = null
-let polite = false
-let makingOffer = false
-let ignoreOffer = false
-let speaker: HTMLAudioElement | null = null
-
-function connection() {
-  if (pc) return pc
-  pc = new RTCPeerConnection({ iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] })
-  pc.onnegotiationneeded = async () => {
-    try {
-      makingOffer = true
-      await pc!.setLocalDescription()
-      say('rtc', { description: pc!.localDescription?.toJSON() })
-    } catch {
-      // The next negotiation will try again
-    } finally {
-      makingOffer = false
-    }
-  }
-  pc.onicecandidate = ({ candidate }) => candidate && say('rtc', { candidate: candidate.toJSON() })
-  pc.ontrack = ({ streams }) => {
-    speaker ??= new Audio()
-    speaker.autoplay = true
-    speaker.srcObject = streams[0]
-    speaker
-      .play()
-      .then(() => set({ hearing: 'live' }))
-      .catch(() => set({ hearing: 'tap' }))
-  }
-  return pc
-}
-
-// "Perfect negotiation": either side can start talking first without the two offers clashing
-async function onSignal({ description, candidate }: Signal) {
-  const c = connection()
-  try {
-    if (description) {
-      const collision = description.type === 'offer' && (makingOffer || c.signalingState !== 'stable')
-      ignoreOffer = !polite && collision
-      if (ignoreOffer) return
-      await c.setRemoteDescription(description)
-      if (description.type === 'offer') {
-        await c.setLocalDescription()
-        say('rtc', { description: c.localDescription?.toJSON() })
-      }
-    } else if (candidate) {
-      await c.addIceCandidate(candidate).catch(() => {
-        if (!ignoreOffer) throw new Error('ice')
-      })
-    }
-  } catch {
-    // A failed handshake step: voice just doesn't connect this time; chat and the tour carry on
-  }
-}
+let voice: Voice | null = null
 
 /** Turn your microphone on, or mute and unmute it */
 export async function toggleMic() {
-  if (state.phase !== 'touring') return
-  if (stream) {
-    const track = stream.getAudioTracks()[0]
-    track.enabled = !track.enabled
-    set({ mic: track.enabled ? 'on' : 'muted' })
-    return
-  }
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-    const c = connection()
-    stream.getTracks().forEach((t) => c.addTrack(t, stream!))
-    set({ mic: 'on' })
-  } catch {
-    notify('Microphone is blocked. Allow it in your browser to talk 🎙️')
-  }
+  if (state.phase !== 'touring' || !voice) return
+  const mic = await voice.toggleMic()
+  if (mic) set({ mic })
+  else notify('Microphone is blocked. Allow it in your browser to talk 🎙️')
 }
 
 /** Phones only play sound after a tap: this is that tap */
-export function hear() {
-  void speaker
-    ?.play()
-    .then(() => set({ hearing: 'live' }))
-    .catch(() => {})
-}
+export const hear = () => voice?.hear()
 
 function stopVoice() {
-  stream?.getTracks().forEach((t) => t.stop())
-  stream = null
-  pc?.close()
-  pc = null
-  makingOffer = false
-  ignoreOffer = false
-  if (speaker) speaker.srcObject = null
+  voice?.stop()
+  voice = null
 }
 
 // Leaving the page ends the tour for both, so nobody is left waiting
