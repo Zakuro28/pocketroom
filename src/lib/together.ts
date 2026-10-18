@@ -20,7 +20,7 @@ export type SharedWeather = { kind: Sky; isDay: boolean; temp: number; place: st
 export type Card = { id: string; code: string; name: string; birthday: string | null; look: Profile | null; room: RoomView | null; weather: SharedWeather | null; seen_at: string }
 export type Link = { id: string; a: string; b: string; kind: LinkKind; status: 'pending' | 'active' | 'ended'; vote_a: string | null; vote_b: string | null; created_at: string; started_at: string | null; ended_at: string | null; anniversary?: string | null }
 type HomeRoom = RoomView & { owned: string[]; storage: Record<string, number> }
-export type Home = { link: string; owner: string; room: HomeRoom; room_by: string | null; tz: string; jar: number; day: string | null; earned: number; chem: number; care?: Record<string, string> }
+export type Home = { link: string; owner: string; room: HomeRoom; room_by: string | null; tz: string; jar: number; day: string | null; earned: number; chem: number; care?: Record<string, string>; couple_gift?: boolean }
 
 type State = { me: string | null; mine: Card | null; links: Link[]; cards: Record<string, Card>; home: Home | null; ready: boolean }
 
@@ -201,6 +201,19 @@ setBonusSink((n) => {
   return true
 })
 
+/** The moving-in gift (a double bed, a second table and a second PC setup), once per shared home */
+let giftAsked: string | null = null
+async function claimGift(h: Home) {
+  // `couple_gift` is missing until supabase/stage8.sql has run; then there's nothing to claim yet
+  if (!supabase || h.couple_gift !== false || giftAsked === h.link) return
+  giftAsked = h.link
+  const { data, error } = await supabase.rpc('claim_couple_gift', { p_link: h.link })
+  if (error || !data) return
+  set({ home: data as Home })
+  applyHome(data as Home)
+  note('💞 Moving-in gift: a double bed, a table and a PC setup are in your storage!')
+}
+
 /** Line the game up with what the server says: move in, keep living together, or move out after a breakup */
 async function reconcile() {
   if (!supabase || !state.me) return
@@ -227,6 +240,7 @@ async function reconcile() {
     }
     if (pushing) applyJar(h)
     else applyHome(h)
+    void claimGift(h)
     return
   }
   setCap(DAILY_CAP)

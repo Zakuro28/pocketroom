@@ -197,14 +197,19 @@ function Hat({ c }: { c: Clothing }) {
         </group>
       )
     case 'bucket':
+      // A deep crown that sits down over the hair, and a short brim that slopes down a little
       return (
-        <group position-y={0.16}>
+        <group position-y={0.17}>
           <mesh>
-            <cylinderGeometry args={[0.17, 0.21, 0.14, 20]} />
+            <cylinderGeometry args={[0.19, 0.245, 0.2, 24]} />
             <Mat color={c.color} />
           </mesh>
-          <mesh position-y={-0.07}>
-            <cylinderGeometry args={[0.31, 0.31, 0.02, 24]} />
+          <mesh position-y={0.1}>
+            <cylinderGeometry args={[0.19, 0.19, 0.012, 24]} />
+            <Mat color={c.color} />
+          </mesh>
+          <mesh position-y={-0.1}>
+            <cylinderGeometry args={[0.25, 0.32, 0.04, 28]} />
             <Mat color={c.color} />
           </mesh>
         </group>
@@ -244,21 +249,26 @@ function Hat({ c }: { c: Clothing }) {
   }
 }
 
-function FaceWear({ c }: { c: Clothing }) {
-  if (c.cut === 'headphones')
+function FaceWear({ c, bigHair = false }: { c: Clothing; bigHair?: boolean }) {
+  if (c.cut === 'headphones') {
+    // Big hair (curls, buns, spikes) gets roomier headphones, so the band sits on top of it
+    const r = bigHair ? 0.3 : 0.255
+    const cup = bigHair ? 0.285 : 0.235
     return (
       <group>
-        <mesh position-y={0.07} rotation-z={Math.PI / 2}>
-          <torusGeometry args={[0.24, 0.022, 8, 24, Math.PI]} />
+        {/* The band arches over the top of the head, from ear to ear, clear of the hair */}
+        <mesh position-y={0.02}>
+          <torusGeometry args={[r, 0.024, 8, 28, Math.PI]} />
           <Mat color={c.accent ?? '#333'} />
         </mesh>
-        {[-0.215, 0.215].map((x) => (
-          <RoundedBox key={x} args={[0.06, 0.13, 0.12]} radius={0.03} position={[x, -0.02, 0]}>
+        {[-cup, cup].map((x) => (
+          <RoundedBox key={x} args={[0.07, 0.15, 0.13]} radius={0.03} position={[x, -0.01, 0]}>
             <Mat color={c.color} />
           </RoundedBox>
         ))}
       </group>
     )
+  }
   const shades = c.cut === 'shades'
   return (
     <group position={[0, -0.02, 0.172]}>
@@ -464,7 +474,7 @@ function Body({ p, height, drive }: { p: Profile; height: number; drive: Drive }
           </mesh>
         ))}
         {hat && <Hat c={hat} />}
-        {face && <FaceWear c={face} />}
+        {face && <FaceWear c={face} bigHair={!hat && (p.hair === 'curly' || p.hair === 'buns' || p.hair === 'spiky')} />}
       </group>
     </group>
   )
@@ -630,6 +640,28 @@ export function Remote({ id, profile, name, at }: { id: string; profile: Profile
       <Body p={profile} height={gameHeight(profile)} drive={remoteDrive} />
       <NameTag name={name} show={tag.show} />
       <Bubble of={id} y={1.22} />
+    </group>
+  )
+}
+
+const sleepDrive: Drive = () => ({ pose: 'lie', walking: false })
+
+/** Your partner while they're away from the game: asleep on the bed, with a little 💤 */
+export function Sleeper({ profile, name, x, y, z, rotY }: { profile: Profile; name: string; x: number; y: number; z: number; rotY: number }) {
+  const tag = useNameTag()
+  const zzz = useRef<HTMLDivElement>(null)
+  useFrame(({ clock }) => {
+    if (zzz.current) zzz.current.style.transform = `translateY(${-Math.abs(Math.sin(clock.elapsedTime * 1.2)) * 6}px)`
+  })
+  return (
+    <group position={[x, y, z]} rotation-y={rotY} scale={1.25} {...tag.handlers}>
+      <Body p={profile} height={gameHeight(profile)} drive={sleepDrive} />
+      <Html position={[0, 0.55, 0]} center zIndexRange={[14, 0]} style={{ pointerEvents: 'none' }}>
+        <div ref={zzz} className="text-lg select-none" aria-hidden>
+          💤
+        </div>
+      </Html>
+      <NameTag name={`${name} is sleeping`} show={tag.show} y={0.8} />
     </group>
   )
 }

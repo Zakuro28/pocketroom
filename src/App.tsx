@@ -3,7 +3,8 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { Check, House, Paintbrush } from 'lucide-react'
 import { cancel } from './game/character'
 import { rollDay, setProfile, setSession, useSave, useSession } from './game/store'
-import { playAsGuest, signInWithGoogle, useKicked } from './lib/auth'
+import { canSignIn, playAsGuest, signInWithGoogle, useAuthReady, useKicked, useSaveLoading, useUser } from './lib/auth'
+import Welcome from './ui/Welcome'
 import { blip } from './lib/sound'
 import { coupleOf, leaveVisit, onNote, otherOf, shareWeather, useTogether } from './lib/together'
 import { skyColors, useWeather } from './lib/weather'
@@ -36,6 +37,12 @@ export default function App() {
   const { place, weather, asked, setPlace, useMyLocation, dismiss } = useWeather()
   const [hour, setHour] = useState(() => new Date().getHours())
   const kicked = useKicked()
+  // Nobody signed in and no character yet (a first visit, or just signed out): offer to sign in first
+  const user = useUser()
+  const authReady = useAuthReady()
+  const [asGuest, setAsGuest] = useState(false)
+  const welcome = !profile && !user && canSignIn && authReady && !asGuest
+  const loadingSave = useSaveLoading()
   const touring = useTour((t) => t.phase === 'touring')
   const [pets, setPets] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
   const [delivering, setDelivering] = useState(false)
@@ -190,7 +197,8 @@ export default function App() {
         <AdoptPicker say={say} />
 
         {/* New players make their character first; Settings can reopen this to change it */}
-        {(!profile || customizing) && (
+        {welcome && <Welcome onGuest={() => setAsGuest(true)} />}
+        {!welcome && !loadingSave && (!profile || customizing) && (
           <Creator
             initial={profile}
             onCancel={profile ? () => setCustomizing(false) : undefined}

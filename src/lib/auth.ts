@@ -15,6 +15,38 @@ const setUser = (u: User) => {
   listeners.forEach((l) => l(u))
 }
 
+// True while a signed-in account's saved game is still on its way (so the character creator doesn't flash up)
+let loading = false
+const loadingListeners = new Set<(l: boolean) => void>()
+const setLoading = (l: boolean) => {
+  loading = l
+  loadingListeners.forEach((f) => f(l))
+}
+export function useSaveLoading() {
+  const [l, setL] = useState(loading)
+  useEffect(() => {
+    loadingListeners.add(setL)
+    return () => void loadingListeners.delete(setL)
+  }, [])
+  return l
+}
+
+// True once we know whether this device is signed in (the saved sign-in loads a moment after the page)
+let ready = supabase === null
+const readyListeners = new Set<(r: boolean) => void>()
+const setReady = () => {
+  ready = true
+  readyListeners.forEach((l) => l(true))
+}
+export function useAuthReady() {
+  const [r, setR] = useState(ready)
+  useEffect(() => {
+    readyListeners.add(setR)
+    return () => void readyListeners.delete(setR)
+  }, [])
+  return r
+}
+
 export function useUser() {
   const [u, setU] = useState(user)
   useEffect(() => {
@@ -102,7 +134,8 @@ export async function signInWithGoogle() {
       return attach(u.id)
     }
   }
-  return supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } })
+  // Always show Google's account chooser, so you can pick (or switch to) any account
+  return supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin, queryParams: { prompt: 'select_account' } } })
 }
 
 /** Signs out this device only, never a phone or computer you're also using */
@@ -135,17 +168,22 @@ async function attach(id: string) {
   // Signing in reports itself twice (the saved session and the sign-in event); load the save once
   if (!supabase || attached === id || kicked) return
   attached = id
-  // Claim the account for this device first, so an older device can't save over what loads next
-  const { error: noColumn } = await supabase.from('players').update({ device }).eq('id', id)
-  deviceRule = !noColumn
-  const { data } = await supabase.from('players').select('save').eq('id', id).maybeSingle()
-  if (data?.save) replaceSave({ ...(data.save as Save), owner: id })
-  else {
-    // A new account. A guest game on this device becomes theirs; another account's game never does:
-    // they start fresh (character creator, starter room, no pets).
-    const local = getSave()
-    replaceSave(local.owner && local.owner !== id ? { ...freshSave(), owner: id } : { ...local, owner: id })
-    await supabase.from('players').upsert({ id, save: getSave(), ...(deviceRule ? { device } : {}) })
+  setLoading(true)
+  try {
+    // Claim the account for this device first, so an older device can't save over what loads next
+    const { error: noColumn } = await supabase.from('players').update({ device }).eq('id', id)
+    deviceRule = !noColumn
+    const { data } = await supabase.from('players').select('save').eq('id', id).maybeSingle()
+    if (data?.save) replaceSave({ ...(data.save as Save), owner: id })
+    else {
+      // A new account. A guest game on this device becomes theirs; another account's game never does:
+      // they start fresh (character creator, starter room, no pets).
+      const local = getSave()
+      replaceSave(local.owner && local.owner !== id ? { ...freshSave(), owner: id } : { ...local, owner: id })
+      await supabase.from('players').upsert({ id, save: getSave(), ...(deviceRule ? { device } : {}) })
+    }
+  } finally {
+    setLoading(false)
   }
   watchDevice(id)
   // Friends, couples and the shared home start once the save is in place
@@ -159,6 +197,7 @@ if (supabase) {
       setUser({ id: s.user.id, email: s.user.email ?? '', name: (s.user.user_metadata.full_name as string) ?? '' })
       void attach(s.user.id)
     }
+    setReady()
   })
   supabase.auth.onAuthStateChange((event, s) => {
     // A device that was logged out stays out until you choose to sign in here again

@@ -3,7 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Vector3, type Mesh, type MeshBasicMaterial, type OrthographicCamera as ThreeOrthographicCamera } from 'three'
 import { OrthographicCamera, useGLTF } from '@react-three/drei'
 import { CATALOG } from '../game/catalog'
-import { CELL, ROOM, WALL_H, type Placed } from '../game/grid'
+import { CELL, ROOM, WALL_H, centerOf, rectOf, type Placed } from '../game/grid'
+import { ITEMS } from '../game/catalog'
 import { getSession, setSession, usePlaced, useSave, useSession } from '../game/store'
 import { bindKeys, goUse, guestSpot, settle, walkTo } from '../game/character'
 import { justDragged, panBy, resetView, view, zoomAt } from './view'
@@ -11,7 +12,7 @@ import { coupleOf, isOnline, otherOf, useTogether } from '../lib/together'
 import { them, them2, useTour } from '../lib/tour'
 import { partnerAt, usePartnerHere, useVisitor, visitorAt } from '../lib/homeLive'
 import { blip } from '../lib/sound'
-import Avatar, { Guest, Remote } from './Avatar'
+import Avatar, { Guest, Remote, Sleeper } from './Avatar'
 import { Ghost, PlacedItem } from './Furniture'
 import Placer from './Placer'
 import Room from './Room'
@@ -184,7 +185,14 @@ export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: stri
   })
   const mode = useSession((s) => s.mode)
   const visit = useSession((s) => s.visit)
-  const shownPets = useMemo(() => (visit ? (visit.room.pets ?? []) : [...roomPets, ...(partnerPets ?? [])]), [visit, roomPets, partnerPets])
+  // Tours: guests bring their pets along, so they're in the room for everyone
+  const tourGuestPets = useTour((t) => (t.phase === 'touring' && t.hosting && t.here ? t.peer?.pets : undefined))
+  const touringAway = useTour((t) => t.phase === 'touring' && !t.hosting)
+  const visitorPets = useVisitor()?.pets
+  const shownPets = useMemo(
+    () => (visit ? [...(visit.room.pets ?? []), ...(touringAway ? roomPets : [])] : [...roomPets, ...(partnerPets ?? []), ...(tourGuestPets ?? []), ...(visitorPets ?? [])]),
+    [visit, roomPets, partnerPets, touringAway, tourGuestPets, visitorPets],
+  )
   // Someone else in the room: the friend you're visiting, or your partner at home. When you're both home,
   // your partner moves live; otherwise (an older version of the game on their side) they stand and wave.
   const partnerCard = useTogether((t) => {
@@ -197,6 +205,15 @@ export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: stri
   const visitor = useVisitor()
   const housemate = useTour((t) => (t.phase === 'touring' && !t.hosting && t.extra?.look ? t.extra : null))
   const partner = !live && partnerCard && isOnline(partnerCard) && partnerCard.look ? partnerCard : null
+  // Away from the game: your partner sleeps on the bed (a double bed if you have one)
+  const asleep = !live && partnerCard && !isOnline(partnerCard) && partnerCard.look ? partnerCard : null
+  const bed = useMemo(() => {
+    const beds = placed.filter((p) => ITEMS[p.id]?.act === 'nap' && ITEMS[p.id].model.startsWith('bed'))
+    const b = beds.find((p) => ITEMS[p.id].model === 'bedDouble') ?? beds[0]
+    if (!b) return null
+    const c = centerOf(rectOf(b))
+    return { x: c.x, z: c.z, rotY: (b.r * Math.PI) / 2 }
+  }, [placed])
   // On a tour the other player walks around live instead of standing still
   const touring = useTour((t) => (t.phase === 'touring' && t.here && t.peer?.look ? t.peer : null))
   const host = visit && touring && visit.id === touring.id
@@ -265,6 +282,7 @@ export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: stri
         {ghost && <Ghost g={ghost} all={placed} />}
         <Avatar />
         {guest && <Guest profile={guest.look} name={guest.name} x={spot.x} z={spot.z} />}
+        {asleep && bed && <Sleeper profile={asleep.look!} name={asleep.name} x={bed.x} y={0.24} z={bed.z} rotY={bed.rotY} />}
         {touring && <Remote id={touring.id} profile={touring.look!} name={touring.name} at={them} />}
         {live && <Remote id={live.id} profile={live.look!} name={live.name} at={partnerAt} />}
         {!visit && visitor?.look && <Remote id={visitor.id} profile={visitor.look} name={visitor.name} at={visitorAt} />}

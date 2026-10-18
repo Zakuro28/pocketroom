@@ -284,7 +284,7 @@ export default function People({ open, onClose, say }: { open: boolean; onClose:
                                     disabled={busy || inTour}
                                     onClick={() => {
                                       blip()
-                                      const err = invite({ id: otherOf(l), name: nameOf(l), look: c?.look ?? null })
+                                      const err = invite({ id: otherOf(l), name: nameOf(l), look: c?.look ?? null, pets: c?.room?.pets ?? [] })
                                       if (err) setMsg({ text: err, good: false })
                                       else onClose()
                                     }}

@@ -1,7 +1,9 @@
 import { useSyncExternalStore } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { cancel, guestSpot, me as myself, settle, type Pose } from '../game/character'
+import { cancel, me as myself, settle, type Pose } from '../game/character'
 import type { Profile } from '../game/look'
+import type { PetBody } from '../game/pets'
+import { CELL, DOOR } from '../game/grid'
 import { getSave, getSession, roomViewOf, setSession, subscribeSave, type RoomView } from '../game/store'
 import { supabase } from './supa'
 import { coupleOf, getTogether, leaveVisit, notify, otherOf, watchTogether } from './together'
@@ -13,7 +15,8 @@ import { coupleOf, getTogether, leaveVisit, notify, otherOf, watchTogether } fro
  * and voice goes straight between the two players (WebRTC), with the tour channel passing the handshake.
  */
 
-export type Peer = { id: string; name: string; look: Profile | null }
+/** The other player on a tour, and the pets they bring along */
+export type Peer = { id: string; name: string; look: Profile | null; pets?: PetBody[] }
 export type ChatLine = { id: number; from: string; name: string; text: string }
 type Phase = 'idle' | 'inviting' | 'invited' | 'touring'
 
@@ -245,9 +248,9 @@ function enterRoom(view: RoomView) {
   const first = getSession().visit?.id !== peer.id
   setSession((s) => ({ ...s, mode: 'play', selected: null, ghost: null, visit: { id: peer.id, name: peer.name, look: peer.look, room: view } }))
   if (first) {
+    // Guests come in through the front door
     cancel()
-    const spot = guestSpot(view.placed)
-    Object.assign(myself, { x: spot.x, z: spot.z, y: 0, pose: 'stand', path: [], finish: null })
+    Object.assign(myself, { x: 1.5 * CELL, z: ((DOOR.from + DOOR.to) / 2) * CELL, y: 0, rotY: Math.PI / 2, pose: 'stand', path: [], finish: null })
   }
   settle(view.placed)
 }
