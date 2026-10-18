@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { getSave, replaceSave, subscribeSave, wipeDevice, type Save } from '../game/store'
+import { freshSave, getSave, replaceSave, subscribeSave, wipeDevice, type Save } from '../game/store'
 import { send, supabase } from './supa'
 import { startTogether, stopTogether } from './together'
 
@@ -139,8 +139,14 @@ async function attach(id: string) {
   const { error: noColumn } = await supabase.from('players').update({ device }).eq('id', id)
   deviceRule = !noColumn
   const { data } = await supabase.from('players').select('save').eq('id', id).maybeSingle()
-  if (data?.save) replaceSave(data.save as Save)
-  else await supabase.from('players').upsert({ id, save: getSave(), ...(deviceRule ? { device } : {}) })
+  if (data?.save) replaceSave({ ...(data.save as Save), owner: id })
+  else {
+    // A new account. A guest game on this device becomes theirs; another account's game never does:
+    // they start fresh (character creator, starter room, no pets).
+    const local = getSave()
+    replaceSave(local.owner && local.owner !== id ? { ...freshSave(), owner: id } : { ...local, owner: id })
+    await supabase.from('players').upsert({ id, save: getSave(), ...(deviceRule ? { device } : {}) })
+  }
   watchDevice(id)
   // Friends, couples and the shared home start once the save is in place
   void startTogether(id)
@@ -165,6 +171,8 @@ if (supabase) {
       attached = null
       setUser(null)
       stopTogether()
+      // The account's game is safe online; this device goes back to a fresh guest game
+      replaceSave(freshSave())
     }
   })
 

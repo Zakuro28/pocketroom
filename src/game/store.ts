@@ -41,6 +41,8 @@ export type Save = {
   adopting: string | null
   /** The year you last got your birthday Hearts */
   birthdayGift: number
+  /** The account this game belongs to (null: a guest game on this device) */
+  owner?: string | null
 }
 
 /** A room as other players see it, with the pets living in it */
@@ -76,6 +78,9 @@ export const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** A brand-new game: starter room, no character yet, no pets */
+export const freshSave = (): Save => fresh()
+
 const fresh = (): Save => ({
   placed: STARTER,
   storage: {},
@@ -95,6 +100,7 @@ const fresh = (): Save => ({
   spins: { day: '', pity: { sinceMythical: 0, sinceDivine: 0 }, birthday: 0, monthsary: '', seasonal: [] },
   adopting: null,
   birthdayGift: 0,
+  owner: null,
 })
 
 function load(): Save {
