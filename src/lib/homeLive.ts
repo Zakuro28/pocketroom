@@ -5,7 +5,7 @@ import { getSave, getSession, watchGame } from '../game/store'
 import { supabase } from './supa'
 import { coupleOf, getTogether, otherOf, watchTogether } from './together'
 import { getTour, relayHousemate, setTourRelay, showBubble, type Peer } from './tour'
-import { createVoice, type Hearing, type Mic, type Signal, type Voice } from './voice'
+import { createVoice, type Hearing, type Line, type Mic, type Signal, type Voice } from './voice'
 
 /**
  * A couple at home together sees each other move live: walking, sitting, napping.
@@ -60,8 +60,8 @@ function partnerPeer(id: string): Peer {
 // ---- Talking at home: chat and voice while you're both in the shared home ----
 
 export type HomeLine = { id: number; mine: boolean; text: string }
-type Talk = { lines: HomeLine[]; unread: number; mic: Mic; hearing: Hearing }
-let talk: Talk = { lines: [], unread: 0, mic: 'off', hearing: 'none' }
+type Talk = { lines: HomeLine[]; unread: number; mic: Mic; hearing: Hearing; line: Line }
+let talk: Talk = { lines: [], unread: 0, mic: 'off', hearing: 'none', line: 'idle' }
 const talkListeners = new Set<() => void>()
 const setTalk = (patch: Partial<Talk>) => {
   talk = { ...talk, ...patch }
@@ -109,7 +109,7 @@ export const homeHear = () => voice?.hear()
 function stopTalking() {
   voice?.stop()
   voice = null
-  setTalk({ mic: 'off', hearing: 'none' })
+  setTalk({ mic: 'off', hearing: 'none', line: 'idle' })
 }
 
 let channel: RealtimeChannel | null = null
@@ -171,7 +171,7 @@ function join(link: string, me: string, partner: string) {
       relayHousemate(null)
       // They left: hang up, ready for a fresh call when they're back
       stopTalking()
-      voice = createVoice({ send: sendSignal, polite: me < partner, onHearing: (hearing) => setTalk({ hearing }) })
+      voice = createVoice({ send: sendSignal, polite: me < partner, onHearing: (hearing) => setTalk({ hearing }), onLine: (line) => setTalk({ line }) })
     })
     .on('broadcast', { event: 'chat' }, ({ payload }) => {
       const p = payload as { from: string; text: string }
@@ -193,7 +193,7 @@ function join(link: string, me: string, partner: string) {
   clearInterval(posTimer)
   posTimer = window.setInterval(sendPos, 100)
   // Voice: the partner whose id sorts first gives way if both start talking at the same moment
-  voice = createVoice({ send: sendSignal, polite: me < partner, onHearing: (hearing) => setTalk({ hearing }) })
+  voice = createVoice({ send: sendSignal, polite: me < partner, onHearing: (hearing) => setTalk({ hearing }), onLine: (line) => setTalk({ line }) })
 }
 
 function sendSignal(sig: Signal) {

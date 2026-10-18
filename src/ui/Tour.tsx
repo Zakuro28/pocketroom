@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { DoorOpen, Mic, MicOff, Send, Volume2, X } from 'lucide-react'
 import { blip } from '../lib/sound'
 import { answer, cancelInvite, chat, end, hear, toggleMic, useTour } from '../lib/tour'
+import { VoiceStatus } from './HomeChat'
 
 const EASE = [0.23, 1, 0.32, 1] as const
 
@@ -73,6 +74,7 @@ export function TourPanel() {
   const lines = useTour((t) => t.chat)
   const mic = useTour((t) => t.mic)
   const hearing = useTour((t) => t.hearing)
+  const line = useTour((t) => t.line)
   const [text, setText] = useState('')
   const log = useRef<HTMLDivElement>(null)
 
@@ -92,6 +94,7 @@ export function TourPanel() {
     >
       <div className="flex items-center gap-2 px-1">
         <p className="min-w-0 flex-1 truncate font-semibold">{title}</p>
+        <VoiceStatus line={line} mic={mic} />
         {hearing === 'tap' && (
           <button type="button" onClick={hear} className="chunky flex items-center gap-1.5 rounded-full bg-sun px-3 py-2 text-xs font-bold text-ink">
             <Volume2 className="size-4" aria-hidden /> Tap to hear

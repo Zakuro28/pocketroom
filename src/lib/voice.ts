@@ -1,3 +1,5 @@
+import { TURN_CREDENTIAL, TURN_URLS, TURN_USERNAME } from './config'
+
 /**
  * Voice between two players, straight from one browser to the other (WebRTC). The handshake messages travel over
  * whatever live channel the two share (a tour, or a couple's home). Used by tours and by couples at home.
@@ -6,6 +8,14 @@
 export type Signal = { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }
 export type Mic = 'off' | 'on' | 'muted'
 export type Hearing = 'none' | 'live' | 'tap'
+/** How the voice line is doing, shown next to the mic */
+export type Line = 'idle' | 'connecting' | 'connected' | 'failed'
+
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  // A relay for networks that block a direct connection (set up in config.ts)
+  ...(TURN_URLS.length ? [{ urls: TURN_URLS, username: TURN_USERNAME, credential: TURN_CREDENTIAL }] : []),
+]
 
 export type Voice = {
   /** A handshake message from the other player */
@@ -17,16 +27,42 @@ export type Voice = {
   stop: () => void
 }
 
-export function createVoice({ send, polite, onHearing }: { send: (s: Signal) => void; polite: boolean; onHearing: (h: Hearing) => void }): Voice {
+export function createVoice({ send, polite, onHearing, onLine }: { send: (s: Signal) => void; polite: boolean; onHearing: (h: Hearing) => void; onLine?: (l: Line) => void }): Voice {
   let pc: RTCPeerConnection | null = null
   let stream: MediaStream | null = null
   let makingOffer = false
   let ignoreOffer = false
   let speaker: HTMLAudioElement | null = null
+  let restarted = false
+
+  /** The speaker is a real (hidden) part of the page and plays inline: iPhones need both to play call audio */
+  function speakerEl() {
+    if (!speaker) {
+      speaker = document.createElement('audio')
+      speaker.autoplay = true
+      speaker.setAttribute('playsinline', '')
+      speaker.style.display = 'none'
+      document.body.appendChild(speaker)
+    }
+    return speaker
+  }
 
   function connection() {
     if (pc) return pc
-    pc = new RTCPeerConnection({ iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] })
+    pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    onLine?.('connecting')
+    pc.onconnectionstatechange = () => {
+      const s = pc?.connectionState
+      if (s === 'connected') onLine?.('connected')
+      else if (s === 'failed') {
+        // Try once more (the network may have changed), then report it
+        if (!restarted && pc) {
+          restarted = true
+          pc.restartIce()
+          onLine?.('connecting')
+        } else onLine?.('failed')
+      } else if (s === 'connecting' || s === 'new') onLine?.('connecting')
+    }
     pc.onnegotiationneeded = async () => {
       try {
         makingOffer = true
@@ -40,11 +76,9 @@ export function createVoice({ send, polite, onHearing }: { send: (s: Signal) => 
     }
     pc.onicecandidate = ({ candidate }) => candidate && send({ candidate: candidate.toJSON() })
     pc.ontrack = ({ streams }) => {
-      speaker ??= new Audio()
-      speaker.autoplay = true
-      speaker.srcObject = streams[0]
-      speaker
-        .play()
+      const el = speakerEl()
+      el.srcObject = streams[0]
+      el.play()
         .then(() => onHearing('live'))
         .catch(() => onHearing('tap'))
     }
@@ -75,6 +109,10 @@ export function createVoice({ send, polite, onHearing }: { send: (s: Signal) => 
       }
     },
     async toggleMic() {
+      // This tap also unlocks the speaker on phones, so the other player's voice can play when it arrives
+      void speakerEl()
+        .play()
+        .catch(() => {})
       if (stream) {
         const track = stream.getAudioTracks()[0]
         track.enabled = !track.enabled
@@ -102,7 +140,12 @@ export function createVoice({ send, polite, onHearing }: { send: (s: Signal) => 
       pc = null
       makingOffer = false
       ignoreOffer = false
-      if (speaker) speaker.srcObject = null
+      if (speaker) {
+        speaker.srcObject = null
+        speaker.remove()
+        speaker = null
+      }
+      onLine?.('idle')
     },
   }
 }

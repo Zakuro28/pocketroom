@@ -6,7 +6,7 @@ import type { PetBody } from '../game/pets'
 import { CELL, DOOR } from '../game/grid'
 import { getSave, getSession, roomViewOf, setSession, subscribeSave, type RoomView } from '../game/store'
 import { supabase } from './supa'
-import { createVoice, type Signal, type Voice } from './voice'
+import { createVoice, type Line, type Signal, type Voice } from './voice'
 import { coupleOf, getTogether, leaveVisit, notify, otherOf, watchTogether } from './together'
 
 /**
@@ -35,11 +35,13 @@ type TourState = {
   mic: 'off' | 'on' | 'muted'
   /** Their voice: playing, or waiting for a tap (phones only play sound after a tap) */
   hearing: 'none' | 'live' | 'tap'
+  /** How the voice line is doing */
+  line: Line
   /** Touring a couple's home: the host's partner, who's home too (passed along by the host) */
   extra: Peer | null
 }
 
-const idle: TourState = { phase: 'idle', tour: null, hosting: false, peer: null, here: false, chat: [], bubbles: {}, mic: 'off', hearing: 'none', extra: null }
+const idle: TourState = { phase: 'idle', tour: null, hosting: false, peer: null, here: false, chat: [], bubbles: {}, mic: 'off', hearing: 'none', line: 'idle', extra: null }
 let state: TourState = idle
 const listeners = new Set<() => void>()
 const set = (patch: Partial<TourState>) => {
@@ -343,7 +345,7 @@ function join(tour: string, hosting: boolean) {
       roomTimer = window.setTimeout(() => say('room', { room: roomView() }), 300)
     })
   }
-  voice = createVoice({ send: (sig) => say('rtc', sig), polite: !hosting, onHearing: (hearing) => set({ hearing }) })
+  voice = createVoice({ send: (sig) => say('rtc', sig), polite: !hosting, onHearing: (hearing) => set({ hearing }), onLine: (line) => set({ line }) })
 }
 
 /** Send a chat line */

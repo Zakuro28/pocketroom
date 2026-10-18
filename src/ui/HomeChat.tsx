@@ -17,6 +17,7 @@ export function HomeChat({ partner, say }: { partner: string; say: (m: string) =
   const unread = useHomeTalk((t) => t.unread)
   const mic = useHomeTalk((t) => t.mic)
   const hearing = useHomeTalk((t) => t.hearing)
+  const line = useHomeTalk((t) => t.line)
   const log = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -105,6 +106,7 @@ export function HomeChat({ partner, say }: { partner: string; say: (m: string) =
         >
           {mic === 'on' ? <Mic className="size-6" /> : <MicOff className="size-6" />}
         </button>
+        <VoiceStatus line={line} mic={mic} />
         {hearing === 'tap' && (
           <button type="button" onClick={homeHear} className="chunky flex items-center gap-1.5 rounded-full bg-sun px-3 py-2.5 text-xs font-bold text-ink">
             <Volume2 className="size-4" aria-hidden /> Tap to hear
@@ -113,4 +115,11 @@ export function HomeChat({ partner, say }: { partner: string; say: (m: string) =
       </div>
     </div>
   )
+}
+
+/** How the voice line is doing, so it's clear whether you can hear each other */
+export function VoiceStatus({ line, mic }: { line: 'idle' | 'connecting' | 'connected' | 'failed'; mic: 'off' | 'on' | 'muted' }) {
+  if (line === 'idle' && mic === 'off') return null
+  const text = line === 'connected' ? '🔊 Voice connected' : line === 'failed' ? 'Couldn’t connect voice on this network' : 'Connecting voice…'
+  return <span className={`rounded-full px-3 py-1.5 text-xs font-bold shadow ${line === 'failed' ? 'bg-heart text-white' : line === 'connected' ? 'bg-mint text-white' : 'bg-cream text-ink-soft'}`}>{text}</span>
 }
