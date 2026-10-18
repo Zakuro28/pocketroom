@@ -8,6 +8,55 @@ export type Update = { version: string; title: string; date: string; intro: stri
 
 export const UPDATES: Update[] = [
   {
+    version: '1.0.1',
+    title: 'Major update coming October 20',
+    date: '2026-10-18',
+    intro: [
+      'Thank you for all your feedback since launch. On October 20, PocketRoom gets its first major update: more to wear, more to decorate, livelier pets, more for couples, and a lot of fixes.',
+      'Here’s everything that’s coming.',
+    ],
+    sections: [
+      {
+        title: '🐾 Pets',
+        points: [
+          'Pets look more like their real animals, and their legs move as they walk (or crawl).',
+          'Feeding and petting: your character walks over to the pet, and the pet sits down happily.',
+          'Living together, tap your partner’s pet to see its stats, and feed or pet it.',
+          'The reel spins a full 6 seconds, fast at first and slowing down at the end.',
+          'Legendary, Mythical and Divine stay a mystery on the reel until the very end.',
+          'When your room is full, choose: swap your new pet into the room, or send it to foster care.',
+          'The foster care choice now appears after you welcome your new pet home.',
+        ],
+      },
+      {
+        title: '👕 Your character',
+        points: [
+          '20 new hairstyles and 20 new hair colors.',
+          'Pick any color you like for your shirt, pants and shoes.',
+          '20 new pieces in every wardrobe category.',
+          'A new gender option.',
+        ],
+      },
+      {
+        title: '🏠 Your home',
+        points: ['20 new items in every decoration category.', '20 new paintings to hang on your walls.', 'Prices get a small rebalance.'],
+      },
+      {
+        title: '💞 Couples',
+        points: ['Cuddle time: extra Hearts while you and your partner are both online.', 'Your anniversary is set once, and stays.'],
+      },
+      {
+        title: '🛠️ Fixes',
+        points: [
+          'Every window fits and scrolls on small phones (including deleting your account on iPhone).',
+          'Your character stays visible while you try on clothes on a phone.',
+          'Activities and pet care happen one at a time, with a short loading moment.',
+        ],
+      },
+    ],
+    outro: 'See you on October 20! More updates soon. Thank you for playing PocketRoom. 💗',
+  },
+  {
     version: '1.0.0',
     title: 'PocketRoom 1.0.0',
     date: '2026-10-18',
