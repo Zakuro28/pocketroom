@@ -68,6 +68,8 @@ export type Session = {
   visit: Visit | null
   /** Today's Heart limit (no limit now: each activity pays once a day instead) */
   cap: number
+  /** Feeding or petting a pet: walking over, then the pet sits while you look after it (see src/game/petCare.ts) */
+  caring?: { uid: string; kind: 'fed' | 'petted'; name: string; phase: 'walk' | 'sit' } | null
 }
 
 const KEY = 'pocketroom:v1'

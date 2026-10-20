@@ -104,8 +104,29 @@ export function walkTo(x: number, z: number, placed: Placed[]) {
   me.finish = { x: end.x, z: end.z, y: 0, rotY: me.rotY, pose: 'stand' }
 }
 
+/** Walk up to a spot (a pet) and stop a cell short of it. False if there's no way there. */
+export function walkNear(x: number, z: number, placed: Placed[]) {
+  cancel()
+  const path = findPath(blockedCells(placed), cellOf(me.x, me.z), cellOf(x, z))
+  if (!path) return false
+  const steps = path.slice(1, -1).map(worldOf)
+  const end = steps.at(-1) ?? { x: me.x, z: me.z }
+  me.pose = steps.length ? 'walk' : 'stand'
+  me.path = steps
+  me.finish = { x: end.x, z: end.z, y: 0, rotY: Math.atan2(x - end.x, z - end.z), pose: 'stand' }
+  return true
+}
+
+/** True while your character is standing still with nothing to do */
+export const idle = () => !me.path.length && !me.finish && me.pose !== 'walk'
+
 /** Tap on furniture while playing: walk over and use it */
 export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
+  // One thing at a time: finish (or stop) what you're doing first
+  const busy = getSession()
+  if (busy.caring) return say(`One thing at a time ✨ You’re looking after ${busy.caring.name}`)
+  if (busy.doing && busy.doing.uid !== p.uid) return say('One thing at a time ✨ Tap ✕ to stop first')
+  if (busy.doing) return
   const item = ITEMS[p.id]
   let act = item.act
   if (!act) return say(`That’s just for looks ✨`)

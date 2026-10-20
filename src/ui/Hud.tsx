@@ -5,7 +5,8 @@ import { ACTS, REWARD_MULT, USES_PER_DAY } from '../game/acts'
 import { ITEMS, type Activity } from '../game/catalog'
 import { cancel, goUse } from '../game/character'
 import { getSession, styleScore, usePlaced, useSave, useSession } from '../game/store'
-import { careForPartnerPet, feedPet, isDone, petPet } from '../game/petActions'
+import { isDone } from '../game/petActions'
+import { startCare, stopCare } from '../game/petCare'
 import { feedHearts, petHearts, type PetBody } from '../game/pets'
 import { coupleOf, otherOf, useTogether } from '../lib/together'
 
@@ -137,10 +138,8 @@ function useToday(say: (m: string) => void, onDone?: () => void) {
         label: `Feed ${p.name}${own ? '' : ' 💞'}`,
         hearts: feedHearts(p),
         done: isDone(p, 'fed'),
-        run: () => {
-          const n = own ? feedPet(p.uid) : careForPartnerPet('fed', p)
-          if (n) say(`${p.name} enjoyed that! +${n} 💗`)
-        },
+        // Your character walks over to the pet; the Hearts arrive once it's been fed
+        run: () => void startCare(p, 'fed', !own, say),
       },
       {
         key: `pet-${p.uid}`,
@@ -148,10 +147,7 @@ function useToday(say: (m: string) => void, onDone?: () => void) {
         label: `Pet ${p.name}${own ? '' : ' 💞'}`,
         hearts: petHearts(p),
         done: isDone(p, 'petted'),
-        run: () => {
-          const n = own ? petPet(p.uid) : careForPartnerPet('petted', p)
-          if (n) say(`${p.name} loved the pets! +${n} 💗`)
-        },
+        run: () => void startCare(p, 'petted', !own, say),
       },
     ]),
   ]
@@ -212,6 +208,36 @@ function TodayList({ onClose, say }: { onClose: () => void; say: (m: string) => 
       {!list.length && <p className="px-1 py-2 text-sm text-ink-soft">No furniture to use yet. Decorate to add some!</p>}
       <p className="px-1 pt-2 text-[11px] text-ink-soft">Buy more furniture for more ways to earn.</p>
     </motion.div>
+  )
+}
+
+/** Looking after a pet: walking over, then a short moment while the pet sits and enjoys it */
+export function CarePill() {
+  const caring = useSession((s) => s.caring)
+  return (
+    <AnimatePresence>
+      {caring && (
+        <motion.div
+          initial={{ opacity: 0, y: -10, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, transition: { duration: 0.15 } }}
+          transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+          className="pointer-events-auto absolute top-[calc(max(0.75rem,env(safe-area-inset-top))+6.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-cream py-2 pr-2 pl-4 shadow-[0_5px_0_rgba(74,52,40,0.14)] ring-2 ring-white sm:top-6"
+          role="status"
+        >
+          <span className="text-xl" aria-hidden>
+            {caring.kind === 'fed' ? '🍖' : '🫶'}
+          </span>
+          <p className="min-w-32 text-sm leading-tight font-semibold">
+            {caring.phase === 'walk' ? `Going to ${caring.kind === 'fed' ? 'feed' : 'pet'} ${caring.name}…` : `${caring.kind === 'fed' ? 'Feeding' : 'Petting'} ${caring.name}…`}
+          </p>
+          <span className="size-4 animate-spin rounded-full border-2 border-line border-t-heart" aria-hidden />
+          <button type="button" onClick={() => (stopCare(), cancel())} aria-label="Stop" className="grid size-8 place-items-center rounded-full bg-paper text-ink-soft transition-colors hover:text-ink">
+            <X className="size-4" />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

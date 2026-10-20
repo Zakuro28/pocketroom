@@ -18,7 +18,6 @@ import Placer from './Placer'
 import Room from './Room'
 import { Courier, Pets } from './Pets'
 import { speciesOf } from '../game/pets'
-import { careForPartnerPet } from '../game/petActions'
 
 // Start downloading every furniture model right away (2 MB in all), so the shop opens instantly
 new Set(CATALOG.filter((i) => i.cat !== 'art').map((i) => i.model)).forEach((m) => useGLTF.preload(`/models/${m}.glb`))
@@ -297,11 +296,8 @@ export default function Stage({ say, sky, onPet, onDelivery }: { say: (msg: stri
             if (roomPets.some((p) => p.uid === uid)) return onPet(uid)
             const other = shownPets.find((p) => p.uid === uid)
             if (!other) return
-            // Living together, you can pet your partner's pets too (once a day per pet, shared)
-            if (partnerPets?.some((p) => p.uid === uid)) {
-              const n = careForPartnerPet('petted', other)
-              return say(n ? `You petted ${other.name}! +${n} 💗` : `${other.name} was already petted today 💞`)
-            }
+            // Living together, your partner's pets open their card too: see their stats, feed and pet them
+            if (partnerPets?.some((p) => p.uid === uid)) return onPet(uid)
             say(`${other.name} the ${speciesOf(other).name} says hi 🐾`)
           }}
         />

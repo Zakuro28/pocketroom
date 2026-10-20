@@ -97,6 +97,19 @@ function ears(b: B, kind: string | undefined, x: number, y: number, z: number, s
   }
 }
 
+/**
+ * A leg hinged at the hip, so the scene can swing it while the pet walks. Everything added to the returned group
+ * hangs down from the hip. `phase` keeps diagonal legs in step (0 or half a turn).
+ */
+function leg(b: B, x: number, y: number, z: number, phase: number) {
+  const g = new Group()
+  g.name = 'leg'
+  g.userData.phase = phase
+  g.position.set(x, y, z)
+  b.g.add(g)
+  return g
+}
+
 /** A tail hinged at the back of the body: `pitch` above 0 raises its tip */
 function hinge(b: B, z: number, y: number, pitch: number) {
   const g = new Group()
@@ -152,7 +165,15 @@ function quad(b: B) {
   // Body, belly, legs
   box(b, bw, bh, bl, p.main, 0, by, 0)
   box(b, bw * 0.8, 0.1, bl * 0.75, p.second, 0, legH + 0.04, 0.02)
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(b, 0.14, legH + 0.06, 0.14, patch ? p.second : sp.mark === 'stripe' && sp.id !== 'skunk' ? p.dark : p.main, sx * 0.15, (legH + 0.06) / 2, sz * (bl / 2 - 0.13))
+  const legColor = patch ? p.second : sp.mark === 'stripe' && sp.id !== 'skunk' ? p.dark : p.main
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      const hip = leg(b, sx * 0.15, legH + 0.06, sz * (bl / 2 - 0.13), sx * sz > 0 ? 0 : Math.PI)
+      box(hip, 0.14, legH + 0.06, 0.14, legColor, 0, -(legH + 0.06) / 2, 0)
+      box(hip, 0.15, 0.06, 0.17, shade(legColor, -0.18), 0, -(legH + 0.06) + 0.03, 0.01)
+    }
+  // Long-legged animals (deer, horses...) get a neck, so the head isn't stuck on the body
+  if (Lg > 1.15) box(b, 0.22, 0.26, 0.2, p.main, 0, by + bh * 0.35, bl / 2 - 0.08, 0.35)
   // Head and face
   const hs = 0.4
   const hz = bl / 2 + 0.06
@@ -210,7 +231,7 @@ function rodent(b: B) {
   box(b, 0.07, 0.05, 0.04, sp.id === 'hedgehog' || sp.id === 'porcupine' ? p.nose : '#f2a0ad', 0, 0.32, 0.53)
   eyes(b, 0.11, 0.42, 0.49, 0.065)
   ears(b, sp.ears, 0.14, 0.52, 0.26, 0.9)
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(b, 0.1, 0.06, 0.12, p.second, sx * 0.18, 0.03, sz * 0.22)
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(leg(b, sx * 0.18, 0.06, sz * 0.22, sx * sz > 0 ? 0 : Math.PI), 0.1, 0.06, 0.12, p.second, 0, -0.03, 0)
   if (sp.mark === 'patch') {
     box(b, 0.3, 0.3, 0.3, p.mark, 0.16, 0.34, -0.12)
     box(b, 0.24, 0.24, 0.2, p.second, -0.18, 0.4, 0.05)
@@ -262,8 +283,9 @@ function bird(b: B) {
   box(b, 0.46, 0.44, 0.56 * L, p.main, 0, by, 0)
   for (const sx of [-1, 1]) {
     box(b, 0.06, 0.3, 0.42 * L, shade(p.main, -0.12), sx * 0.25, by + 0.02, -0.04)
-    box(b, 0.04, legH, 0.04, beakColor === '#5a5250' ? '#c9a05a' : beakColor, sx * 0.1, legH / 2, 0.02)
-    box(b, 0.1, 0.03, 0.12, beakColor === '#5a5250' ? '#c9a05a' : beakColor, sx * 0.1, 0.015, 0.06)
+    const hip = leg(b, sx * 0.1, legH, 0.02, sx > 0 ? 0 : Math.PI)
+    box(hip, 0.04, legH, 0.04, beakColor === '#5a5250' ? '#c9a05a' : beakColor, 0, -legH / 2, 0)
+    box(hip, 0.1, 0.03, 0.12, beakColor === '#5a5250' ? '#c9a05a' : beakColor, 0, -legH + 0.015, 0.04)
   }
   const hs = owl ? 0.4 : 0.3
   const hz = owl ? 0.12 : 0.24 * L
@@ -301,7 +323,7 @@ function lizard(b: B) {
   for (const sx of [-1, 1])
     for (const sz of [-1, 1]) {
       box(b, 0.18, 0.06, 0.07, p.main, sx * 0.24, legH + 0.02, sz * bl * 0.32, 0, 0, sx * -0.5)
-      box(b, 0.06, legH + 0.04, 0.06, p.main, sx * 0.32, (legH + 0.04) / 2, sz * bl * 0.32)
+      box(leg(b, sx * 0.32, legH + 0.04, sz * bl * 0.32, sx * sz > 0 ? 0 : Math.PI), 0.06, legH + 0.04, 0.06, p.main, 0, -(legH + 0.04) / 2, 0)
     }
   const hz = bl / 2 + 0.14
   box(b, 0.32, 0.18, 0.3, p.main, 0, by + 0.02, hz)
@@ -359,7 +381,7 @@ function turtle(b: B) {
   for (let i = 0; i < 3; i++) box(b, 0.18, 0.04, 0.18, shade(p.main, 0.15), (i - 1) * 0.2, 0.44, 0.08 - (i % 2) * 0.2)
   box(b, 0.22, 0.18, 0.24, skin, 0, 0.2, 0.46)
   eyes(b, 0.07, 0.25, 0.58, 0.05)
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(b, 0.14, 0.12, 0.14, skin, sx * 0.28, 0.06, sz * 0.26)
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(leg(b, sx * 0.28, 0.12, sz * 0.26, sx * sz > 0 ? 0 : Math.PI), 0.14, 0.12, 0.14, skin, 0, -0.06, 0)
 }
 
 function snail(b: B) {
@@ -418,7 +440,7 @@ function spider(b: B) {
       const z = 0.24 - i * 0.1
       box(b, 0.26, 0.05, 0.05, p.main, sx * 0.27, 0.32, z, 0, (i - 1.5) * -0.3 * sx, sx * -0.6)
       box(b, 0.05, 0.05, 0.05, p.second, sx * 0.38, 0.39, z)
-      box(b, 0.05, 0.3, 0.05, p.main, sx * 0.46, 0.18, z, 0, 0, sx * 0.25)
+      box(leg(b, sx * 0.46, 0.33, z, (i + (sx > 0 ? 1 : 0)) % 2 ? Math.PI : 0), 0.05, 0.3, 0.05, p.main, 0, -0.15, 0, 0, 0, sx * 0.25)
     }
 }
 

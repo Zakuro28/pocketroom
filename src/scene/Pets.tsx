@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
-import type { Group, Mesh, MeshBasicMaterial } from 'three'
+import type { Group, Mesh, MeshBasicMaterial, Object3D } from 'three'
+import { me } from '../game/character'
+import { careTick, petSpots } from '../game/petCare'
 import { CELL, DOOR, ROOM, blockedCells, findPath, type Placed } from '../game/grid'
 import { DEFAULT_PROFILE, type Profile } from '../game/look'
 import { isTiny, petHeight, speciesOf, type PetBody } from '../game/pets'
@@ -28,10 +30,24 @@ function startCell(uid: string, blocked: Set<string>): [number, number] {
   return [9, 8]
 }
 
+/** Swing the legs back and forth while walking (each at its own phase), and ease them still otherwise */
+function swing(legs: Object3D[], walking: boolean, at: number, k: number) {
+  for (const l of legs) l.rotation.x += ((walking ? Math.sin(at + l.userData.phase) * 0.55 : 0) - l.rotation.x) * k
+}
+
 /** One pet: wanders between free spots, pauses, and hops a little as it walks */
 function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>; onTap: (uid: string) => void }) {
   const sp = speciesOf(pet)
   const model = useMemo(() => buildPet({ sp, coat: pet.coat, color: pet.color }), [sp, pet.coat, pet.color])
+  // The legs, hinged at the hips (see petModel.ts), to swing while walking
+  const legs = useRef<Object3D[]>([])
+  useEffect(() => {
+    const out: Object3D[] = []
+    model.traverse((o) => o.name === 'leg' && out.push(o))
+    legs.current = out
+  }, [model])
+  const body = useRef<Group>(null)
+  useEffect(() => () => void petSpots.delete(pet.uid), [pet.uid])
   const day = today()
   const h = petHeight(pet, day)
   const tiny = isTiny(pet, day)
@@ -51,7 +67,16 @@ function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>;
     const r = root.current
     if (!r) return
     dt = Math.min(dt, 0.05)
+    const t = clock.elapsedTime
     let hop = 0
+    // Being fed or petted: stop, face your character, then sit down happily
+    const care = careTick(pet.uid, s.x, s.z, t)
+    if (care) {
+      s.path = []
+      s.wait = 2
+      s.rotY = Math.atan2(me.x - s.x, me.z - s.z)
+    }
+    const walking = !!s.path.length
     if (s.path.length) {
       const t = s.path[0]
       const dx = t.x - s.x
@@ -67,7 +92,9 @@ function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>;
         s.x += (dx / dist) * step
         s.z += (dz / dist) * step
       }
-      if (sp.arch !== 'snail' && sp.arch !== 'snake' && sp.arch !== 'turtle') hop = Math.abs(Math.sin(clock.elapsedTime * 11)) * h * 0.08
+      // Hoppers and frogs hop; walkers just bob a little now that their legs move
+      const hopper = sp.arch === 'hopper' || sp.arch === 'frog'
+      if (sp.arch !== 'snail' && sp.arch !== 'snake' && sp.arch !== 'turtle') hop = Math.abs(Math.sin(clock.elapsedTime * (hopper ? 11 : 13))) * h * (hopper ? 0.08 : 0.025)
     } else if ((s.wait -= dt) <= 0) {
       // Pick somewhere nearby to wander to
       const from: [number, number] = [Math.floor(s.x / CELL), Math.floor(s.z / CELL)]
@@ -83,8 +110,23 @@ function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>;
       s.wait = 2 + Math.random() * 6
     }
     r.position.set(s.x, hop, s.z)
+    petSpots.set(pet.uid, { x: s.x, z: s.z })
     const diff = ((s.rotY - r.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI
     r.rotation.y += diff * Math.min(1, dt * 8)
+    // Legs swing while walking and settle when still; snakes wriggle and snails stretch as they crawl
+    const k = Math.min(1, dt * 10)
+    const stride = sp.arch === 'turtle' ? 4 : 13
+    swing(legs.current, walking && care !== 'sit', t * stride, k)
+    const b = body.current
+    if (b) {
+      const crawl = walking && (sp.arch === 'snake' || sp.arch === 'snail')
+      b.rotation.y = crawl && sp.arch === 'snake' ? Math.sin(t * 5) * 0.18 : 0
+      b.scale.z = crawl && sp.arch === 'snail' ? 1 + Math.sin(t * 3) * 0.08 : 1
+      // Sitting: lean back on the hind legs, with a happy little bounce
+      const sit = care === 'sit'
+      b.rotation.x += ((sit ? -0.32 : 0) - b.rotation.x) * k
+      b.position.y = sit ? Math.abs(Math.sin(t * 6)) * h * 0.05 : 0
+    }
     if (ring.current) (ring.current.material as MeshBasicMaterial).opacity = 0.35 + Math.sin(clock.elapsedTime * 3) * 0.15
   })
 
@@ -106,7 +148,9 @@ function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>;
         }}
         onPointerOut={() => setHover(false)}
       >
-        <primitive object={model} scale={h} />
+        <group ref={body}>
+          <primitive object={model} scale={h} />
+        </group>
         {/* A bigger invisible target, so small pets are easy to tap */}
         <mesh position-y={h / 2} visible={false}>
           <boxGeometry args={[Math.max(0.3, h), Math.max(0.3, h), Math.max(0.3, h)]} />

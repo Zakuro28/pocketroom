@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, Check, Gift, Home, Package, X } from 'lucide-react'
-import { adoptAway, feedPet, fosterPets, isDone, movePet, petPet, renamePet, rollDelivery, roomPets, swapPets, type Roll } from '../game/petActions'
-import { useTogether } from '../lib/together'
+import { adoptAway, fosterPets, isDone, movePet, renamePet, rollDelivery, roomPets, swapPets, type Roll } from '../game/petActions'
+import { startCare } from '../game/petCare'
+import { coupleOf, otherOf, useTogether } from '../lib/together'
 import {
   EVENTS,
   FOSTER_SLOTS,
@@ -23,11 +24,12 @@ import {
   speciesIn,
   speciesOf,
   type Pet,
+  type PetBody,
   type Species,
   type Tier,
 } from '../game/pets'
-import { now, today, useSave, type Delivery } from '../game/store'
-import { blip, fanfare, heart, nope, tick } from '../lib/sound'
+import { now, today, useSave, useSession, type Delivery } from '../game/store'
+import { blip, fanfare, nope, tick } from '../lib/sound'
 import { canSignIn, signInWithGoogle, useUser } from '../lib/auth'
 import { petThumb } from '../scene/petModel'
 
@@ -91,9 +93,8 @@ const STEP = 120
 const WIN = 46
 const LEN = 54
 
-function card(tier: Tier, sp: Species): Card {
-  return { sp: tier === 'mythical' ? STORK : sp, tier, mystery: tier === 'mythical' || tier === 'divine' }
-}
+/** Legendary, Mythical and Divine pets stay a mystery on the reel; the winning card shows who it is only when the reel stops */
+const card = (tier: Tier, sp: Species): Card => ({ sp, tier, mystery: tier === 'legendary' || tier === 'mythical' || tier === 'divine' })
 
 function strip(roll: Roll): Card[] {
   const d = roll.delivery
@@ -106,15 +107,33 @@ function strip(roll: Roll): Card[] {
 
 function ReelCard({ c, win }: { c: Card; win: boolean }) {
   const t = TIER_INFO[c.tier]
+  // The winning card shows the real pet once the reel has stopped; every other mystery card stays a mystery
+  const hidden = c.mystery && !win
   return (
     <div
       className={`relative flex h-36 shrink-0 flex-col items-center justify-end overflow-hidden rounded-2xl bg-white pb-2 transition-transform duration-300 ${win ? 'scale-105 ring-4' : 'ring-1 ring-line'}`}
       style={{ width: CARD_W, background: c.mystery ? `radial-gradient(circle at 50% 40%, ${t.glow}, #ffffff 70%)` : undefined, ['--tw-ring-color' as string]: t.color }}
     >
       <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: t.color }} />
-      {c.tier === 'divine' ? <span className="mb-4 text-5xl" aria-hidden>✨</span> : <PetPic sp={c.sp} className="mb-1 size-24" />}
+      {hidden && c.tier === 'divine' ? (
+        <span className="mb-4 text-5xl" aria-hidden>
+          ✨
+        </span>
+      ) : hidden && c.tier === 'mythical' ? (
+        <PetPic sp={STORK} className="mb-1 size-24" />
+      ) : hidden ? (
+        // Legendary: a dark silhouette with a question mark
+        <span className="relative mb-1 grid size-24 place-items-center">
+          <PetPic sp={c.sp} className="size-24 brightness-0 opacity-70" />
+          <span className="absolute text-3xl font-bold text-white drop-shadow" aria-hidden>
+            ?
+          </span>
+        </span>
+      ) : (
+        <PetPic sp={c.sp} className="mb-1 size-24" />
+      )}
       <p className="w-full truncate px-1 text-center text-[11px] font-bold" style={{ color: t.color }}>
-        {c.tier === 'mythical' ? 'Mythical?' : c.tier === 'divine' ? 'Divine?' : c.sp.name}
+        {hidden ? `${t.label}?` : c.sp.name}
       </p>
     </div>
   )
@@ -250,8 +269,9 @@ function TierTag({ tier }: { tier: Tier }) {
 
 // ---- Deliveries: door → reel → reveal → (adoption if foster is full) ----
 
-export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: () => void; say: (m: string) => void }) {
+export function DeliveryFlow({ open, onClose, say, onRolling }: { open: boolean; onClose: () => void; say: (m: string) => void; onRolling?: (rolling: boolean) => void }) {
   const deliveries = useSave((s) => s.deliveries)
+  const pets = useSave((s) => s.pets)
   const adopting = useSave((s) => s.adopting)
   const [roll, setRoll] = useState<Roll | null>(null)
   const [step, setStep] = useState<'door' | 'spin' | 'reveal'>('door')
@@ -281,14 +301,16 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
     fanfare(TIER_LEVEL[roll.tier] + (roll.pet.color || roll.pet.sizeMut ? 1 : 0))
     setStep('reveal')
   }
-  const welcome = () => {
+  const welcome = (message?: string) => {
     if (!roll) return
     renamePet(roll.pet.uid, name)
-    say(roll.pet.place === 'room' ? `${name.trim() || roll.pet.name} moved in! 🐾` : `${name.trim() || roll.pet.name} went to foster care 🏡`)
+    say(message ?? (roll.pet.place === 'room' ? `${name.trim() || roll.pet.name} moved in! 🐾` : `${name.trim() || roll.pet.name} went to foster care 🏡`))
     setRoll(null)
     setStep('door')
     if (!deliveries.length && !adopting) close()
   }
+  // The foster care choice (when it's full) waits until you've welcomed your new pet home
+  useEffect(() => onRolling?.(open && step !== 'door'), [open, step, onRolling])
 
   const show = open && !(step === 'door' && adopting)
   return (
@@ -302,7 +324,7 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', duration: 0.45, bounce: 0.2 }}
-            className="relative w-full max-w-2xl min-w-0 rounded-[2rem] bg-cream p-5 shadow-2xl"
+            className="relative max-h-[92dvh] w-full max-w-2xl min-w-0 overflow-y-auto overscroll-contain rounded-[2rem] bg-cream p-5 shadow-2xl"
           >
             {step === 'door' && (
               <>
@@ -380,10 +402,41 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
                   Name
                   <input value={name} onChange={(e) => setName(e.target.value.slice(0, 16))} className="mt-1 w-full rounded-2xl bg-white px-4 py-3 text-base text-ink ring-2 ring-line outline-none focus:ring-sun" />
                 </label>
-                <p className="text-xs text-ink-soft">{roll.full ? 'Foster care is full, so someone needs a new home first.' : roll.pet.place === 'room' ? 'Moving into your room.' : 'Your room is full, so they’ll stay in foster care.'}</p>
-                <button type="button" onClick={welcome} className="chunky w-full max-w-xs rounded-2xl bg-heart py-3.5 font-bold text-white">
-                  Welcome home! 🐾
-                </button>
+                {roll.pet.place === 'room' ? (
+                  <>
+                    <p className="text-xs text-ink-soft">Moving into your room.</p>
+                    <button type="button" onClick={() => welcome()} className="chunky w-full max-w-xs rounded-2xl bg-heart py-3.5 font-bold text-white">
+                      Welcome home! 🐾
+                    </button>
+                  </>
+                ) : (
+                  // The room is full: swap the new pet in for one of the room pets, or send it to foster care
+                  <div className="w-full max-w-sm">
+                    <p className="text-sm font-semibold">Your room is full ({ROOM_SLOTS}/{ROOM_SLOTS}). Swap {name.trim() || roll.pet.name} in for:</p>
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      {roomPets(pets)
+                        .filter((r) => r.uid !== roll.pet.uid)
+                        .map((r) => (
+                          <button
+                            key={r.uid}
+                            type="button"
+                            onClick={() => {
+                              swapPets(r.uid, roll.pet.uid)
+                              welcome(`${name.trim() || roll.pet.name} moved in, ${r.name} went to foster care 🐾`)
+                            }}
+                            className="chunky flex flex-col items-center rounded-xl bg-white p-1.5"
+                          >
+                            <PetPic {...thumbOf(r)} className="size-14" />
+                            <span className="w-full truncate text-xs font-semibold">{r.name}</span>
+                          </button>
+                        ))}
+                    </div>
+                    <button type="button" onClick={() => welcome()} className="chunky mt-3 w-full rounded-2xl bg-heart py-3.5 font-bold text-white">
+                      Send to foster care 🏡
+                    </button>
+                    {roll.full && <p className="mt-2 text-xs text-ink-soft">Foster care is full too, so next you’ll choose a foster pet to be adopted.</p>}
+                  </div>
+                )}
               </motion.div>
             )}
           </motion.div>
@@ -394,7 +447,7 @@ export function DeliveryFlow({ open, onClose, say }: { open: boolean; onClose: (
 }
 
 /** Foster care is full and a new pet arrived: pick a foster pet to be adopted (it leaves right away) */
-export function AdoptPicker({ say }: { say: (m: string) => void }) {
+export function AdoptPicker({ say, hold = false }: { say: (m: string) => void; hold?: boolean }) {
   const adopting = useSave((s) => s.adopting)
   const pets = useSave((s) => s.pets)
   const [pick, setPick] = useState<Pet | null>(null)
@@ -402,9 +455,9 @@ export function AdoptPicker({ say }: { say: (m: string) => void }) {
   const choices = fosterPets(pets).filter((p) => p.uid !== adopting)
   return (
     <AnimatePresence>
-      {adopting && fresh && (
+      {adopting && fresh && !hold && (
         <motion.div className="pointer-events-auto fixed inset-0 z-[55] grid place-items-center bg-ink/40 p-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <div role="alertdialog" aria-modal="true" aria-labelledby="adopt-title" className="w-full max-w-lg rounded-[2rem] bg-cream p-5 shadow-2xl">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="adopt-title" className="max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-[2rem] bg-cream p-5 shadow-2xl">
             <h2 id="adopt-title" className="text-xl font-bold">
               Foster care is full
             </h2>
@@ -472,28 +525,69 @@ function PetTile({ p, onClick }: { p: Pet; onClick: () => void }) {
   )
 }
 
-function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: string) => void }) {
-  const pets = useSave((s) => s.pets)
-  const sp = speciesOf(p)
+/** Feed and pet buttons: your character walks over to the pet in the room, and the window closes so you can watch */
+function CareButtons({ p, partner, onClose, say }: { p: PetBody & { fed?: string; petted?: string }; partner: boolean; onClose: () => void; say: (m: string) => void }) {
   // Done today, by you or (living together) your partner
   useTogether((t) => t.home?.care)
+  const busy = useSession((s) => s.caring)
   const fed = isDone(p, 'fed')
   const petted = isDone(p, 'petted')
+  const go = (kind: 'fed' | 'petted') => {
+    blip()
+    if (startCare(p, kind, partner, say)) onClose()
+  }
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => go('fed')} disabled={fed || !!busy} className="chunky rounded-2xl bg-heart px-2 py-3.5 font-bold text-white disabled:bg-[#d7cfc4]">
+          {fed ? 'Fed ✓' : `🍖 Feed · +${feedHearts(p)}`}
+        </button>
+        <button type="button" onClick={() => go('petted')} disabled={petted || !!busy} className="chunky rounded-2xl bg-sun px-2 py-3.5 font-bold text-ink disabled:bg-[#d7cfc4] disabled:text-white">
+          {petted ? 'Petted ✓' : `🫶 Pet · +${petHearts(p)}`}
+        </button>
+      </div>
+      {busy && <p className="text-center text-xs font-semibold text-ink-soft">One at a time: looking after {busy.name}…</p>}
+    </>
+  )
+}
+
+/** Living together: your partner's pet, with its stats, and feed and pet buttons (shared once a day) */
+function PartnerPetCard({ p, owner, onBack, onClose, say }: { p: PetBody; owner: string; onBack: () => void; onClose: () => void; say: (m: string) => void }) {
+  const sp = speciesOf(p)
+  const pet = p as Pet
+  return (
+    <div className="flex flex-col gap-3">
+      <button type="button" onClick={onBack} className="flex w-fit items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink">
+        <ArrowLeft className="size-4" aria-hidden /> All pets
+      </button>
+      <div className="flex flex-col items-center gap-2 text-center">
+        <div className="grid size-36 place-items-center rounded-full" style={{ background: `radial-gradient(circle, ${TIER_INFO[sp.tier].glow}, transparent 70%)` }}>
+          <PetPic sp={sp} coat={p.coat} color={p.color} className="size-32" />
+        </div>
+        <h2 className="text-2xl font-bold">{p.name}</h2>
+        <p className="text-sm font-semibold text-ink-soft">{owner}’s pet 💞</p>
+        <div className="flex items-center gap-2 text-sm text-ink-soft">
+          {sp.name} <TierTag tier={sp.tier} />
+        </div>
+        <AvgIv p={pet} big />
+        <Growth p={pet} />
+        <Mutations p={pet} />
+      </div>
+      <CareButtons p={p} partner onClose={onClose} say={say} />
+      <p className="text-center text-xs text-ink-soft">Once a day each, shared with {owner}. The Hearts go into your jar.</p>
+      <div className="rounded-2xl bg-white p-3">
+        <Ivs p={pet} />
+      </div>
+    </div>
+  )
+}
+
+function PetCard({ p, onBack, onClose, say }: { p: Pet; onBack: () => void; onClose: () => void; say: (m: string) => void }) {
+  const pets = useSave((s) => s.pets)
+  const sp = speciesOf(p)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [swapping, setSwapping] = useState(false)
   const room = roomPets(pets)
-  const feed = () => {
-    const n = feedPet(p.uid)
-    if (!n) return nope()
-    heart()
-    say(`${p.name} enjoyed that! +${n} 💗`)
-  }
-  const pat = () => {
-    const n = petPet(p.uid)
-    if (!n) return nope()
-    heart()
-    say(`${p.name} loved the pets! +${n} 💗`)
-  }
   const move = (to: 'room' | 'foster') => {
     const err = movePet(p.uid, to)
     if (err) return (nope(), say(err))
@@ -527,14 +621,7 @@ function PetCard({ p, onBack, say }: { p: Pet; onBack: () => void; say: (m: stri
       </div>
 
       {p.place === 'room' ? (
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={feed} disabled={fed} className="chunky rounded-2xl bg-heart px-2 py-3.5 font-bold text-white disabled:bg-[#d7cfc4]">
-            {fed ? 'Fed ✓' : `🍖 Feed · +${feedHearts(p)}`}
-          </button>
-          <button type="button" onClick={pat} disabled={petted} className="chunky rounded-2xl bg-sun px-2 py-3.5 font-bold text-ink disabled:bg-[#d7cfc4] disabled:text-white">
-            {petted ? 'Petted ✓' : `🫶 Pet · +${petHearts(p)}`}
-          </button>
-        </div>
+        <CareButtons p={p} partner={false} onClose={onClose} say={say} />
       ) : (
         <p className="text-center text-xs text-ink-soft">Bring {p.name} into the room to feed and pet them.</p>
       )}
@@ -607,7 +694,16 @@ export function PetsPanel({ open, focus, onClose, onDeliveries, say }: { open: b
     setSel(undefined)
     onClose()
   }
-  const selected = pets.find((p) => p.uid === (sel === undefined ? focus : sel))
+  const want = sel === undefined ? focus : sel
+  const selected = pets.find((p) => p.uid === want)
+  // Living together: your partner's room pets can be opened too (tapped in the room, or from their tab)
+  const living = useSave((s) => s.home)
+  const partner = useTogether((t) => {
+    const c = coupleOf(t)
+    const card = c && living === c.id ? t.cards[otherOf(c)] : undefined
+    return card ? { name: card.name || 'Partner', pets: card.room?.pets ?? [] } : null
+  })
+  const partnerPet = !selected && partner ? partner.pets.find((p) => p.uid === want) : undefined
   const list = tab === 'room' ? roomPets(pets) : fosterPets(pets)
   return (
     <AnimatePresence>
@@ -627,7 +723,9 @@ export function PetsPanel({ open, focus, onClose, onDeliveries, say }: { open: b
               <X className="size-5" />
             </button>
             {selected ? (
-              <PetCard p={selected} onBack={() => setSel(null)} say={say} />
+              <PetCard p={selected} onBack={() => setSel(null)} onClose={close} say={say} />
+            ) : partnerPet && partner ? (
+              <PartnerPetCard p={partnerPet} owner={partner.name} onBack={() => setSel(null)} onClose={close} say={say} />
             ) : (
               <>
                 <h2 className="text-xl font-bold">Your pets 🐾</h2>

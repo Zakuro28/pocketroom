@@ -15,7 +15,7 @@ import { coupleOf, leaveVisit, onNote, otherOf, shareWeather, useTogether } from
 import { skyColors, useWeather } from './lib/weather'
 import Stage from './scene/Stage'
 import Decorate from './ui/Decorate'
-import { DoingPill, Hud } from './ui/Hud'
+import { CarePill, DoingPill, Hud } from './ui/Hud'
 import Settings, { PlacePicker } from './ui/Settings'
 import Closet from './ui/Closet'
 import People from './ui/People'
@@ -62,6 +62,8 @@ export default function App() {
   })
   const [pets, setPets] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
   const [delivering, setDelivering] = useState(false)
+  // While a pet is being rolled and welcomed, the foster care choice waits
+  const [rolling, setRolling] = useState(false)
   const waiting = useSave((s) => s.deliveries.length)
 
   // A new day resets today's Hearts and brings new pet deliveries; the sky follows the clock
@@ -147,6 +149,7 @@ export default function App() {
         <div className="pointer-events-none absolute inset-0">
           <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} weatherLabel={weatherLabel} say={say} />
           {mode === 'play' && <DoingPill />}
+          {mode === 'play' && <CarePill />}
           {mode === 'play' && !visit && !touring && partnerHere && partnerName && <HomeChat partner={partnerName} say={say} />}
           <TourInvites />
 
@@ -212,8 +215,8 @@ export default function App() {
           }}
           say={say}
         />
-        <DeliveryFlow open={delivering} onClose={() => setDelivering(false)} say={say} />
-        <AdoptPicker say={say} />
+        <DeliveryFlow open={delivering} onClose={() => setDelivering(false)} say={say} onRolling={setRolling} />
+        <AdoptPicker say={say} hold={rolling} />
         <Notes
           page={shownNotes}
           onClose={() => {
