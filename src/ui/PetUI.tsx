@@ -7,6 +7,7 @@ import { coupleOf, otherOf, useTogether } from '../lib/together'
 import {
   EVENTS,
   FOSTER_SLOTS,
+  GIFTS,
   GROW_DAYS,
   IV_NAMES,
   MUTATIONS,
@@ -45,7 +46,7 @@ const thumbOf = (p: Pet) => ({ sp: speciesOf(p), coat: p.coat, color: p.color })
 
 function deliveryTitle(d: Delivery) {
   if (d.kind === 'daily') return 'Your daily pet'
-  if (d.kind === 'gift') return 'Gift pet for everyone 🎁'
+  if (d.kind === 'gift') return GIFTS[d.round ?? 1]?.title ?? 'Gift pet for everyone 🎁'
   if (d.kind === 'birthday') return 'Birthday pet 🎂'
   if (d.kind === 'monthsary') return 'Monthsary pet 💞'
   const ev = EVENTS.find((e) => e.id === d.event)
@@ -54,6 +55,8 @@ function deliveryTitle(d: Delivery) {
 
 function deliveryOdds(d: Delivery) {
   if (d.kind === 'seasonal') return `One of ${speciesIn('seasonal', d.event).map((s) => s.name).join(' or ')}`
+  const gift = d.kind === 'gift' ? GIFTS[d.round ?? 1] : undefined
+  if (gift?.tier) return `A ${TIER_INFO[gift.tier].label} pet${gift.hearts ? ` and ${gift.hearts.toLocaleString('en-US')} Hearts` : ''}`
   if (d.kind === 'daily' || d.kind === 'gift') return 'Any pet, Common to Divine'
   return `${SPECIAL_DROP.legendary}% Legendary · ${SPECIAL_DROP.mythical}% Mythical · ${SPECIAL_DROP.divine}% Divine`
 }
@@ -395,6 +398,7 @@ export function DeliveryFlow({ open, onClose, say, onRolling }: { open: boolean;
                 </div>
                 <Mutations p={roll.pet} />
                 <AvgIv p={roll.pet} big />
+                {roll.hearts > 0 && <p className="rounded-full bg-heart/10 px-4 py-1.5 text-base font-bold text-heart">+{roll.hearts.toLocaleString('en-US')} 💗 Hearts too!</p>}
                 <p className="text-sm text-ink-soft">
                   Feeding pays <b className="text-heart tabular-nums">+{feedHearts(roll.pet)} 💗</b> a day
                 </p>

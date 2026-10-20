@@ -20,7 +20,16 @@ export const FEED_MULT = 3
 /** Petting is separate from feeding: once a day per pet, (average IV × PET_MULT × (1 + mutation bonuses)) Hearts */
 export const PET_MULT = 2
 /** Gift pets for everyone: raise this number (and publish) to put one extra pet at every player's door, once */
-export const GIFT_ROUND = 1
+export const GIFT_ROUND = 2
+/**
+ * What each gift round brings. `tier` makes the gift pet that tier (otherwise it rolls like a daily pet),
+ * `hearts` come with it when it's opened, and `until` (YYYY-MM-DD) is the last day it can arrive.
+ */
+export const GIFTS: Record<number, { tier?: Exclude<Tier, 'seasonal'>; hearts?: number; until?: string; title?: string }> = {
+  1: {},
+  // The 1.1.0 thank-you: 10,000 Hearts and a Divine pet for everyone playing this week
+  2: { tier: 'divine', hearts: 10_000, until: '2026-10-27', title: 'Thank-you gift ✨' },
+}
 /** Days from baby to adult */
 export const GROW_DAYS = 30
 /** Pets living in the room, and in foster care */

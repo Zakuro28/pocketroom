@@ -124,7 +124,6 @@ export default function App() {
     return id ? (t.cards[id]?.weather ?? null) : null
   })
   const theirSky = theirs ? skyColors({ kind: theirs.kind, isDay: theirs.isDay, temp: theirs.temp }, hour) : null
-  const weatherLabel = weather && place ? `${weather.temp}° ${place.name.split(',')[0]}` : null
 
   const toggleEdit = () => {
     blip()
@@ -147,7 +146,7 @@ export default function App() {
         </div>
 
         <div className="pointer-events-none absolute inset-0">
-          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} weatherLabel={weatherLabel} say={say} />
+          <Hud onSettings={() => setSettings(true)} onWardrobe={() => setWardrobe(true)} onPeople={() => setPeople(true)} onPets={() => setPets({ open: true, focus: null })} say={say} />
           {mode === 'play' && <DoingPill />}
           {mode === 'play' && <CarePill />}
           {mode === 'play' && !visit && !touring && partnerHere && partnerName && <HomeChat partner={partnerName} say={say} />}

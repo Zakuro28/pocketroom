@@ -2,6 +2,7 @@ import { careDone, coupleCare, coupleOf, getTogether, livingTogether, type Care 
 import {
   EVENTS,
   FOSTER_SLOTS,
+  GIFTS,
   GIFT_ROUND,
   ROOM_SLOTS,
   SPECIES_BY_ID,
@@ -37,11 +38,12 @@ export function checkDeliveries() {
   const add: Delivery[] = []
   const spins = { ...s.spins }
 
-  // A gift pet for everyone, once per gift round (see GIFT_ROUND)
-  if ((spins.gift ?? 0) < GIFT_ROUND) {
-    spins.gift = GIFT_ROUND
-    add.push({ id: uid(), kind: 'gift' })
+  // A gift for everyone, once per gift round (see GIFT_ROUND and GIFTS); a round past its last day is skipped
+  for (let round = (spins.gift ?? 0) + 1; round <= GIFT_ROUND; round++) {
+    const g = GIFTS[round]
+    if (!g?.until || d <= g.until) add.push({ id: uid(), kind: 'gift', round })
   }
+  spins.gift = Math.max(spins.gift ?? 0, GIFT_ROUND)
   // One free spin a day (an unrolled one waits; they don't pile up)
   if (spins.day < d) {
     spins.day = d
@@ -80,16 +82,17 @@ export function checkBirthdayGift() {
   return BIRTHDAY_GIFT
 }
 
-export type Roll = { pet: Pet; tier: Tier; delivery: Delivery; full: boolean }
+export type Roll = { pet: Pet; tier: Tier; delivery: Delivery; full: boolean; /** Hearts that came with a gift */ hearts: number }
 
 /** Open a delivery: decide the pet now (so closing the page mid-spin can't re-roll it) and add it to your pets */
 export function rollDelivery(id: string): Roll | null {
   const s = getSave()
   const delivery = s.deliveries.find((x) => x.id === id)
   if (!delivery) return null
-  // A gift rolls like a daily pet (and counts toward the guarantees)
-  const daily = delivery.kind === 'daily' || delivery.kind === 'gift'
-  const tier: Tier = delivery.kind === 'seasonal' ? 'seasonal' : daily ? dailyTier(s.spins.pity) : specialTier()
+  // A gift rolls like a daily pet (and counts toward the guarantees), unless its round sets the tier
+  const gift = delivery.kind === 'gift' ? GIFTS[delivery.round ?? 1] : undefined
+  const daily = (delivery.kind === 'daily' || delivery.kind === 'gift') && !gift?.tier
+  const tier: Tier = gift?.tier ?? (delivery.kind === 'seasonal' ? 'seasonal' : daily ? dailyTier(s.spins.pity) : specialTier())
   const sp = randomSpecies(tier, delivery.event)
   const pet = makePet(sp, today(), uid())
   const inRoom = s.pets.filter((p) => p.place === 'room').length
@@ -103,9 +106,12 @@ export function rollDelivery(id: string): Roll | null {
     spins: { ...x.spins, pity: nextPity(x.spins.pity, tier, daily) },
     adopting: full ? pet.uid : x.adopting,
   }))
+  // Gift Hearts come with the box. Living together they go into the jar, which takes at most 1,500 at a time.
+  const hearts = gift?.hearts ?? 0
+  for (let left = hearts; left > 0; left -= 1500) addBonus(Math.min(1500, left))
   // Local testing: put the next one of each kind at the door straight away
   if (import.meta.env.DEV) checkDeliveries()
-  return { pet, tier, delivery, full }
+  return { pet, tier, delivery, full, hearts }
 }
 
 /** Local testing only (npm run dev): one of every kind of delivery is always waiting. Never in the live build. */

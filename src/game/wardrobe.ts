@@ -207,6 +207,9 @@ export const CLOTHES: Clothing[] = [
 
 export const CLOTHING: Record<string, Clothing> = Object.fromEntries(CLOTHES.map((x) => [x.id, x]))
 
+/** Dyeing the shirt, pants or shoes a new color costs this many Hearts (going back to the piece's own color is free) */
+export const DYE_PRICE = 350
+
 /** Clothes every new player starts with */
 export const STARTER_CLOTHES = CLOTHES.filter((x) => x.price === 0).map((x) => x.id)
 

@@ -31,6 +31,12 @@ function startCell(uid: string, blocked: Set<string>): [number, number] {
 }
 
 /** Swing the legs back and forth while walking (each at its own phase), and ease them still otherwise */
+/** Flap the wings (bats): fast while flying about, a slow lazy flap while resting */
+function flap(wings: Object3D[], moving: boolean, t: number) {
+  const a = moving ? Math.sin(t * 16) * 0.75 : Math.sin(t * 3) * 0.2
+  for (const w of wings) w.rotation.z = w.userData.side * a
+}
+
 function swing(legs: Object3D[], walking: boolean, at: number, k: number) {
   for (const l of legs) l.rotation.x += ((walking ? Math.sin(at + l.userData.phase) * 0.55 : 0) - l.rotation.x) * k
 }
@@ -41,10 +47,13 @@ function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>;
   const model = useMemo(() => buildPet({ sp, coat: pet.coat, color: pet.color }), [sp, pet.coat, pet.color])
   // The legs, hinged at the hips (see petModel.ts), to swing while walking
   const legs = useRef<Object3D[]>([])
+  const wings = useRef<Object3D[]>([])
   useEffect(() => {
     const out: Object3D[] = []
-    model.traverse((o) => o.name === 'leg' && out.push(o))
+    const flappers: Object3D[] = []
+    model.traverse((o) => (o.name === 'leg' ? out.push(o) : o.name === 'wing' && flappers.push(o)))
     legs.current = out
+    wings.current = flappers
   }, [model])
   const body = useRef<Group>(null)
   useEffect(() => () => void petSpots.delete(pet.uid), [pet.uid])
@@ -117,6 +126,7 @@ function PetActor({ pet, blocked, onTap }: { pet: PetBody; blocked: Set<string>;
     const k = Math.min(1, dt * 10)
     const stride = sp.arch === 'turtle' ? 4 : 13
     swing(legs.current, walking && care !== 'sit', t * stride, k)
+    flap(wings.current, walking, t)
     const b = body.current
     if (b) {
       const crawl = walking && (sp.arch === 'snake' || sp.arch === 'snail')

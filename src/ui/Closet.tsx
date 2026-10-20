@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Check, X } from 'lucide-react'
 import { DYEABLE, type Dyeable, type Profile, type Slot } from '../game/look'
 import { buyClothing, dye, useSave, wear } from '../game/store'
-import { CLOTHES, CLOTHING, RARITY, SLOTS, type Clothing } from '../game/wardrobe'
+import { CLOTHES, CLOTHING, DYE_PRICE, RARITY, SLOTS, type Clothing } from '../game/wardrobe'
 import { blip, buyChime, nope } from '../lib/sound'
 import { Preview } from './Creator'
 import { ClothingIcon } from './ClothingIcon'
@@ -14,28 +14,55 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 /** Quick dye colors; the last swatch opens a picker for any color at all */
 const DYES = ['#ffffff', '#2b2a30', '#9aa3ad', '#e2443a', '#f29e4c', '#ffcf5a', '#7bc96f', '#2fb3a0', '#5bb8d6', '#3c5fd6', '#a77bf0', '#f28bb8', '#c4a77d', '#7a4f33']
 
-/** Pick a color for the piece you're wearing: its own color, a quick swatch, or anything from the picker */
-function DyeRow({ slot, own, value }: { slot: Dyeable; own: string; value?: string }) {
-  const pick = (c: string | null) => {
-    blip()
-    dye(slot, c)
-  }
+/**
+ * Pick a color for the piece you're wearing: its own color (free), a quick swatch, or anything from the picker.
+ * A new color shows on your character first, and costs DYE_PRICE Hearts once you confirm.
+ */
+function DyeRow({ slot, own, value, pending, onPending, hearts, say }: { slot: Dyeable; own: string; value?: string; pending: string | null; onPending: (c: string | null) => void; hearts: number; say: (m: string) => void }) {
+  const shown = pending ?? value
   const ring = (on: boolean) => (on ? 'ring-3 ring-ink' : 'ring-1 ring-black/10')
+  const original = () => {
+    blip()
+    onPending(null)
+    if (value) dye(slot, null)
+  }
+  const pick = (c: string) => {
+    blip()
+    onPending(c === value ? null : c)
+  }
+  const confirm = () => {
+    if (!pending || !dye(slot, pending)) return nope()
+    buyChime()
+    say('New color! ✨')
+    onPending(null)
+  }
   return (
     <div className="mt-1 shrink-0">
-      <p className="text-xs font-semibold text-ink-soft">Color (free)</p>
+      <p className="text-xs font-semibold text-ink-soft">Color · 💗 {fmt(DYE_PRICE)} to dye, the original is free</p>
       <Slide label="Clothing color" className="-mx-1 gap-2 px-1 pt-1.5 pb-2">
-        <button type="button" onClick={() => pick(null)} aria-label="Original color" className={`grid size-8 shrink-0 place-items-center rounded-full text-[10px] font-bold ring-offset-2 ring-offset-cream ${ring(!value)}`} style={{ background: own }}>
+        <button type="button" onClick={original} aria-label="Original color" className={`grid size-8 shrink-0 place-items-center rounded-full text-[10px] font-bold ring-offset-2 ring-offset-cream ${ring(!shown)}`} style={{ background: own }}>
           <span className="rounded bg-white/85 px-0.5 text-ink">✦</span>
         </button>
         {DYES.map((c) => (
-          <button key={c} type="button" onClick={() => pick(c)} aria-label={c} className={`size-8 shrink-0 rounded-full ring-offset-2 ring-offset-cream ${ring(value === c)}`} style={{ background: c }} />
+          <button key={c} type="button" onClick={() => pick(c)} aria-label={c} className={`size-8 shrink-0 rounded-full ring-offset-2 ring-offset-cream ${ring(shown === c)}`} style={{ background: c }} />
         ))}
-        <label className={`relative grid size-8 shrink-0 cursor-pointer place-items-center rounded-full ring-offset-2 ring-offset-cream ${ring(!!value && !DYES.includes(value))}`} style={{ background: 'conic-gradient(#ef5e57, #f2d36b, #7bc96f, #5bb8d6, #a77bf0, #f28bb8, #ef5e57)' }}>
+        <label className={`relative grid size-8 shrink-0 cursor-pointer place-items-center rounded-full ring-offset-2 ring-offset-cream ${ring(!!shown && !DYES.includes(shown))}`} style={{ background: 'conic-gradient(#ef5e57, #f2d36b, #7bc96f, #5bb8d6, #a77bf0, #f28bb8, #ef5e57)' }}>
           <span className="sr-only">Any color</span>
-          <input type="color" value={value ?? own} onChange={(e) => dye(slot, e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+          {/* The picker only previews; nothing is charged until you tap Dye */}
+          <input type="color" value={shown ?? own} onChange={(e) => onPending(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
         </label>
       </Slide>
+      {pending && (
+        <div className="mb-1 flex items-center gap-2">
+          <span className="size-6 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: pending }} aria-hidden />
+          <button type="button" onClick={() => onPending(null)} className="chunky rounded-xl bg-white px-3 py-2 text-sm font-semibold">
+            Cancel
+          </button>
+          <button type="button" onClick={confirm} disabled={hearts < DYE_PRICE} className="chunky flex-1 rounded-xl bg-heart px-3 py-2 text-sm font-bold text-white disabled:bg-[#d7cfc4]">
+            {hearts < DYE_PRICE ? `Need ${fmt(DYE_PRICE - hearts)} more` : `Dye · 💗 ${fmt(DYE_PRICE)}`}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -56,15 +83,22 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
   const hearts = useSave((s) => s.hearts)
   const [slot, setSlot] = useState<Slot>('top')
   const [trying, setTrying] = useState<Clothing | null>(null)
+  // A color being previewed before you pay to dye
+  const [pendingDye, setPendingDye] = useState<string | null>(null)
   if (!profile) return null
 
-  // Trying something on shows it in its own color
-  const preview: Profile = trying ? { ...profile, outfit: { ...profile.outfit, [trying.slot]: trying.id }, tint: { ...profile.tint, [trying.slot]: undefined } } : profile
   const optional = slot === 'hat' || slot === 'face'
   const dyeable = DYEABLE.includes(slot as Dyeable) ? (slot as Dyeable) : null
+  // Trying something on shows it in its own color; a color being previewed shows on what you're wearing
+  const preview: Profile = trying
+    ? { ...profile, outfit: { ...profile.outfit, [trying.slot]: trying.id }, tint: { ...profile.tint, [trying.slot]: undefined } }
+    : pendingDye && dyeable
+      ? { ...profile, tint: { ...profile.tint, [dyeable]: pendingDye } }
+      : profile
 
   const pick = (c: Clothing) => {
     blip()
+    setPendingDye(null)
     if (owned.includes(c.id)) {
       setTrying(null)
       if (optional && profile.outfit[c.slot] === c.id) wear(c.slot, null)
@@ -150,6 +184,7 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
                     type="button"
                     onClick={() => {
                       setSlot(s.id)
+                      setPendingDye(null)
                       setTrying(null)
                     }}
                     className={`chunky flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold ${slot === s.id ? 'bg-ink text-cream' : 'bg-white ring-1 ring-line'}`}
@@ -158,7 +193,7 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
                   </button>
                 ))}
               </Slide>
-              {dyeable && !trying && profile.outfit[dyeable] && <DyeRow slot={dyeable} own={CLOTHING[profile.outfit[dyeable]!]?.color ?? '#ffffff'} value={profile.tint?.[dyeable]} />}
+              {dyeable && !trying && profile.outfit[dyeable] && <DyeRow slot={dyeable} own={CLOTHING[profile.outfit[dyeable]!]?.color ?? '#ffffff'} value={profile.tint?.[dyeable]} pending={pendingDye} onPending={setPendingDye} hearts={hearts} say={say} />}
               <div className="mt-3 grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] content-start gap-2.5 overflow-y-auto pb-1">
                 {CLOTHES.filter((c) => c.slot === slot).map((c) => {
                   const has = owned.includes(c.id)

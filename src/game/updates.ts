@@ -8,6 +8,29 @@ export type Update = { version: string; title: string; date: string; intro: stri
 
 export const UPDATES: Update[] = [
   {
+    version: '1.1.1',
+    title: 'A thank-you gift for you ✨',
+    date: '2026-10-20',
+    intro: ['Thank you for playing PocketRoom! Everyone playing this week gets a thank-you gift: 10,000 Hearts and a Divine pet. It’s waiting at your door until October 27.'],
+    sections: [
+      {
+        title: '🎁 Your gift',
+        points: ['Open the delivery at your door: a guaranteed Divine pet, with 10,000 Hearts inside the box.', 'Living together, both of you get one, and the Hearts go into your jar.'],
+      },
+      {
+        title: '✨ Changes',
+        points: [
+          'Dyeing clothes now costs 350 Hearts. Pick a color to see it on your character first, then tap Dye. Going back to the original color is free.',
+          'Bats flap their wings.',
+          'Heart shades have proper heart-shaped lenses.',
+          'Bunny slippers have bunny ears, and bear slippers have bear ears.',
+          'The weather tag at the top of the screen is gone, for a cleaner view.',
+        ],
+      },
+    ],
+    outro: 'Enjoy, and thank you for being here. 💗',
+  },
+  {
     version: '1.1.0',
     title: 'The October 20 update is here!',
     date: '2026-10-20',
@@ -32,7 +55,7 @@ export const UPDATES: Update[] = [
         title: '👕 Your character',
         points: [
           '20 new hairstyles (afro, braids, mohawk, twin tails, locs and more) and 20 new hair colors.',
-          'Dye your shirt, pants and shoes any color you like in the wardrobe, for free.',
+          'Dye your shirt, pants and shoes any color you like in the wardrobe.',
           '20 new pieces in every wardrobe category, with new shapes: tank tops, sandals, berets, top hats, bows, cat ears, halos, heart shades, face masks and monocles.',
           'A new gender option: Non-binary.',
         ],

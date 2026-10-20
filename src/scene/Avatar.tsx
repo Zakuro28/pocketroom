@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Html, RoundedBox } from '@react-three/drei'
-import type { Group, Mesh } from 'three'
+import { ExtrudeGeometry, Shape, type Group, type Mesh } from 'three'
 import { me, step, type Pose } from '../game/character'
 import { BIG_HAIR, BUILDS, DEFAULT_PROFILE, gameHeight, heightScale, type HairStyle, type Profile } from '../game/look'
 import { useSave } from '../game/store'
@@ -585,23 +585,15 @@ function FaceWear({ c, bigHair = false }: { c: Clothing; bigHair?: boolean }) {
     )
   if (c.cut === 'hearts')
     return (
-      <group position={[0, -0.02, 0.172]}>
-        {[-0.075, 0.075].map((x) => (
-          <group key={x} position-x={x} scale={[1, 1, 0.35]}>
-            {[-0.022, 0.022].map((bx) => (
-              <mesh key={bx} position={[bx, 0.012, 0]}>
-                <sphereGeometry args={[0.03, 12, 10]} />
-                <meshStandardMaterial color={c.color} roughness={0.15} metalness={0.2} />
-              </mesh>
-            ))}
-            <mesh position-y={-0.018} rotation-z={Math.PI}>
-              <coneGeometry args={[0.05, 0.06, 4]} />
-              <meshStandardMaterial color={c.color} roughness={0.15} metalness={0.2} />
-            </mesh>
-          </group>
+      // Two heart-shaped lenses, out in front of the eyes so they cover them like real shades
+      <group position={[0, -0.02, 0.18]}>
+        {[-0.078, 0.078].map((x) => (
+          <mesh key={x} position-x={x} scale={0.115} geometry={HEART}>
+            <meshStandardMaterial color={c.color} roughness={0.2} metalness={0.15} />
+          </mesh>
         ))}
-        <mesh>
-          <boxGeometry args={[0.04, 0.01, 0.01]} />
+        <mesh position-z={0.01}>
+          <boxGeometry args={[0.045, 0.012, 0.012]} />
           <Mat color={c.color} />
         </mesh>
       </group>
@@ -625,6 +617,63 @@ function FaceWear({ c, bigHair = false }: { c: Clothing; bigHair?: boolean }) {
         <boxGeometry args={[0.05, 0.01, 0.01]} />
         <Mat color={c.color} />
       </mesh>
+    </group>
+  )
+}
+
+/** A heart outline (point down), about 1 wide and 1 tall, thick enough to read as a lens */
+const HEART = (() => {
+  const h = new Shape()
+  h.moveTo(0, -0.5)
+  h.bezierCurveTo(-0.12, -0.32, -0.5, -0.12, -0.5, 0.15)
+  h.bezierCurveTo(-0.5, 0.44, -0.18, 0.55, 0, 0.3)
+  h.bezierCurveTo(0.18, 0.55, 0.5, 0.44, 0.5, 0.15)
+  h.bezierCurveTo(0.5, -0.12, 0.12, -0.32, 0, -0.5)
+  const g = new ExtrudeGeometry(h, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 2, curveSegments: 16 })
+  g.center()
+  return g
+})()
+
+/** What sits on top of a slipper's toe: long bunny ears, round bear ears with a snout, or nothing (plain ones) */
+function SlipperFace({ c }: { c: Clothing }) {
+  const bunny = c.id === 'slippers'
+  const bear = c.id === 'slippers-bear'
+  if (!bunny && !bear) return null
+  return (
+    // On the toe, in front of the pant leg, so the ears and face aren't hidden
+    <group position={[0, 0.02, 0.055]}>
+      {[-1, 1].map((sx) =>
+        bunny ? (
+          <group key={sx} position={[sx * 0.022, 0.035, 0]} rotation={[0.45, 0, -sx * 0.3]}>
+            <mesh scale={[0.45, 1.25, 0.35]}>
+              <sphereGeometry args={[0.03, 10, 8]} />
+              <Mat color={c.color} />
+            </mesh>
+            <mesh position-z={0.006} scale={[0.22, 0.85, 0.2]}>
+              <sphereGeometry args={[0.03, 10, 8]} />
+              <Mat color="#f6a8bd" />
+            </mesh>
+          </group>
+        ) : (
+          <mesh key={sx} position={[sx * 0.034, 0.014, 0]}>
+            <sphereGeometry args={[0.016, 10, 8]} />
+            <Mat color={c.color} />
+          </mesh>
+        ),
+      )}
+      {/* Little eyes, and a bear's snout */}
+      {[-1, 1].map((sx) => (
+        <mesh key={`e${sx}`} position={[sx * 0.018, 0.004, 0.026]}>
+          <sphereGeometry args={[0.006, 8, 6]} />
+          <meshBasicMaterial color="#2b2233" />
+        </mesh>
+      ))}
+      {bear && (
+        <mesh position={[0, -0.008, 0.032]} scale={[1, 0.7, 0.6]}>
+          <sphereGeometry args={[0.014, 10, 8]} />
+          <Mat color="#e8d2b8" />
+        </mesh>
+      )}
     </group>
   )
 }
@@ -682,12 +731,7 @@ function LegParts({ upper, lower, shoes, skin }: { upper: string; lower: string;
               <Mat color="#ffffff" />
             </mesh>
           )}
-          {shoes.cut === 'slippers' && (
-            <mesh position={[0, 0.05, 0.03]} scale={[0.5, 1.4, 0.5]}>
-              <sphereGeometry args={[0.03, 8, 8]} />
-              <Mat color={shoes.color} />
-            </mesh>
-          )}
+          {shoes.cut === 'slippers' && <SlipperFace c={shoes} />}
         </group>
       )}
     </>

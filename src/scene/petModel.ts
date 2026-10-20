@@ -423,8 +423,14 @@ function bat(b: B) {
   eyes(b, 0.07, 0.66, 0.14, 0.05)
   ears(b, sp.ears, 0.09, 0.72, 0.0, 0.8)
   for (const sx of [-1, 1]) {
-    box(b, 0.5, 0.36, 0.03, p.second, sx * 0.38, 0.42, -0.02, 0, 0, sx * 0.2)
-    box(b, 0.5, 0.04, 0.04, p.main, sx * 0.38, 0.6, -0.02, 0, 0, sx * 0.2)
+    // Each wing hangs off a hinge at the shoulder, so the scene can flap it (see Pets.tsx)
+    const wing = new Group()
+    wing.name = 'wing'
+    wing.userData.side = sx
+    wing.position.set(sx * 0.13, 0.5, -0.02)
+    b.g.add(wing)
+    box(wing, 0.5, 0.36, 0.03, p.second, sx * 0.25, -0.08, 0, 0, 0, sx * 0.2)
+    box(wing, 0.5, 0.04, 0.04, p.main, sx * 0.25, 0.1, 0, 0, 0, sx * 0.2)
     box(b, 0.06, 0.12, 0.06, p.main, sx * 0.08, 0.08, 0)
   }
   if (sp.id === 'vampireBat') for (const sx of [-1, 1]) box(b, 0.02, 0.04, 0.02, '#ffffff', sx * 0.03, 0.53, 0.15)

@@ -25,7 +25,7 @@ function Rolling({ value }: { value: number }) {
 }
 
 /** Hearts, today's progress toward the daily limit, and the room's style score */
-export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel, say }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; onPets: () => void; weatherLabel: string | null; say: (m: string) => void }) {
+export function Hud({ onSettings, onWardrobe, onPeople, onPets, say }: { onSettings: () => void; onWardrobe: () => void; onPeople: () => void; onPets: () => void; say: (m: string) => void }) {
   const waiting = useSave((s) => s.deliveries.length)
   const hearts = useSave((s) => s.hearts)
   const style = useSave((s) => styleScore(s.placed))
@@ -65,7 +65,6 @@ export function Hud({ onSettings, onWardrobe, onPeople, onPets, weatherLabel, sa
         <AnimatePresence>{today && <TodayList onClose={() => setToday(false)} say={say} />}</AnimatePresence>
       </div>
       <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
-        {weatherLabel && <span className="hidden rounded-full bg-cream/90 px-3 py-2 text-sm font-medium text-ink-soft shadow-[0_4px_0_rgba(74,52,40,0.1)] sm:block">{weatherLabel}</span>}
         <span className="hidden items-center gap-1.5 rounded-full bg-cream/95 px-3.5 py-2 text-sm font-semibold shadow-[0_4px_0_rgba(74,52,40,0.12)] sm:flex" title="Room style grows with what you place">
           <Sparkles className="size-4 text-sun" aria-hidden /> <Rolling value={style} />
         </span>

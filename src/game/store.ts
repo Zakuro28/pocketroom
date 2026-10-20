@@ -5,12 +5,12 @@ import { canPlace, type Placed, type Rot } from './grid'
 import { STARTER } from './starter'
 import { FLOORS, WALLS } from './surfaces'
 import type { Dyeable, Profile, Slot } from './look'
-import { CLOTHING, STARTER_CLOTHES } from './wardrobe'
+import { CLOTHING, DYE_PRICE, STARTER_CLOTHES } from './wardrobe'
 import { DEFAULT_OUTFIT } from './look'
 import { bodyOf, type Pet, type PetBody, type Pity } from './pets'
 
 /** A pet waiting at the door: today's free spin, a birthday or monthsary spin, or a seasonal event */
-export type Delivery = { id: string; kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal' | 'gift'; event?: string }
+export type Delivery = { id: string; kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal' | 'gift'; event?: string; /** Which gift round a gift came from (see GIFTS in pets.ts) */ round?: number }
 /** What's been handed out already, so each spin comes once */
 export type Spins = { day: string; pity: Pity; birthday: number; monthsary: string; seasonal: string[]; gift?: number }
 
@@ -336,15 +336,21 @@ export function wear(slot: Slot, id: string | null) {
   })
 }
 
-/** Dye the shirt, pants or shoes any color (null puts the piece's own color back). Free. */
+/**
+ * Dye the shirt, pants or shoes any color, for DYE_PRICE Hearts. Null puts the piece's own color back, for free.
+ * Returns false if there aren't enough Hearts.
+ */
 export function dye(slot: Dyeable, color: string | null) {
+  const price = color ? DYE_PRICE : 0
+  if (!save.profile || save.hearts < price) return false
   setSave((s) => {
     if (!s.profile) return s
     const tint = { ...s.profile.tint }
     if (color) tint[slot] = color
     else delete tint[slot]
-    return { ...s, profile: { ...s.profile, tint } }
+    return { ...s, hearts: s.hearts - price, profile: { ...s.profile, tint } }
   })
+  return true
 }
 
 /**
