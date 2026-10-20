@@ -81,7 +81,7 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
             exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.12 } }}
             transition={{ type: 'spring', duration: 0.4, bounce: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm rounded-[2rem] bg-cream p-6 shadow-2xl"
+            className="relative max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain w-full max-w-sm rounded-[2rem] bg-cream p-6 shadow-2xl"
           >
             <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-white">
               <X className="size-5" />
@@ -269,7 +269,7 @@ function DangerZone({ signedIn, inCouple, onClose, say }: { signedIn: boolean; i
       <h3 className="text-sm font-semibold text-ink-soft">Start over</h3>
       {err && <p className="mt-2 text-sm text-heart">{err}</p>}
       {asking ? (
-        <div className="mt-2 rounded-2xl bg-white p-4">
+        <div ref={(el) => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })} className="mt-2 scroll-mb-4 rounded-2xl bg-white p-4">
           <p className="text-sm font-semibold">{asking === 'reset' ? 'Delete everything?' : signedIn ? 'Delete your account?' : 'Delete this game?'}</p>
           <p className="mt-1 text-sm text-ink-soft">
             {asking === 'reset'

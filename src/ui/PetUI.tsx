@@ -717,7 +717,7 @@ export function PetsPanel({ open, focus, onClose, onDeliveries, say }: { open: b
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.28, ease: EASE }}
             onClick={(e) => e.stopPropagation()}
-            className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-y-auto rounded-[2rem] bg-cream p-5 shadow-2xl"
+            className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-y-auto overscroll-contain rounded-[2rem] bg-cream p-5 shadow-2xl"
           >
             <button type="button" onClick={close} aria-label="Close" className="absolute top-4 right-4 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-white">
               <X className="size-5" />

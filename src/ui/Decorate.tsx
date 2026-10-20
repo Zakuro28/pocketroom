@@ -271,7 +271,7 @@ function BuyWindow({ item, onClose, say }: { item: Item | Surface | null; onClos
             exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.12 } }}
             transition={{ type: 'spring', duration: 0.4, bounce: 0.25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xs rounded-[2rem] bg-cream p-5 text-center shadow-2xl"
+            className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain w-full max-w-xs rounded-[2rem] bg-cream p-5 text-center shadow-2xl"
           >
             <div className="mx-auto grid size-32 place-items-center rounded-3xl bg-white">
               {isItem ? <ItemPic item={item} className="size-28" /> : <span className="size-20 rounded-2xl" style={{ background: item.base }} />}

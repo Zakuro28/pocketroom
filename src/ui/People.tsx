@@ -75,7 +75,7 @@ export default function People({ open, onClose, say }: { open: boolean; onClose:
             exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.12 } }}
             transition={{ type: 'spring', duration: 0.4, bounce: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-[2rem] bg-cream p-6 shadow-2xl"
+            className="relative max-h-[90dvh] w-full max-w-sm overflow-y-auto overscroll-contain rounded-[2rem] bg-cream p-6 shadow-2xl"
           >
             <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-white">
               <X className="size-5" />

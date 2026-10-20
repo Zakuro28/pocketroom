@@ -8,6 +8,64 @@ export type Update = { version: string; title: string; date: string; intro: stri
 
 export const UPDATES: Update[] = [
   {
+    version: '1.1.0',
+    title: 'The October 20 update is here!',
+    date: '2026-10-20',
+    intro: [
+      'PocketRoom’s first major update has arrived: more to wear, more to decorate, livelier pets, more for couples, and a lot of fixes.',
+      'Thank you for all your feedback. Here’s everything that’s new.',
+    ],
+    sections: [
+      {
+        title: '🐾 Pets',
+        points: [
+          'Legs move as pets walk, snakes wriggle and snails stretch as they crawl. Pets have paws now, and long-legged animals have necks.',
+          'Feeding and petting: your character walks over to the pet, the pet sits down happily, and the Hearts arrive after a short moment.',
+          'Living together, tap your partner’s pet to see its stats, and feed or pet it.',
+          'The reel spins a full 6 seconds, fast at first and slowing down at the end.',
+          'Legendary, Mythical and Divine stay a mystery on the reel until it stops.',
+          'When your room is full, choose: swap your new pet into the room, or send it to foster care.',
+          'When foster care is full, the adoption choice now comes after you welcome your new pet home.',
+        ],
+      },
+      {
+        title: '👕 Your character',
+        points: [
+          '20 new hairstyles (afro, braids, mohawk, twin tails, locs and more) and 20 new hair colors.',
+          'Dye your shirt, pants and shoes any color you like in the wardrobe, for free.',
+          '20 new pieces in every wardrobe category, with new shapes: tank tops, sandals, berets, top hats, bows, cat ears, halos, heart shades, face masks and monocles.',
+          'A new gender option: Non-binary.',
+        ],
+      },
+      {
+        title: '🏠 Your home',
+        points: [
+          '20 new items in every decoration category, in 20 color themes, from Sakura and Mint to Galaxy, Gilded and Crystal.',
+          'A new Art tab with 20 paintings to hang on your walls.',
+          'Prices get a small rebalance: plain furniture from 1,000 Hearts up costs about 10% less.',
+        ],
+      },
+      {
+        title: '💞 Couples',
+        points: [
+          'Cuddle time: while you’re both home, every 5 minutes together adds 30 Hearts to your jar, up to 6 times a day.',
+          'Your anniversary is set once, and stays.',
+          'Pet care and the jar now reset at midnight where you live.',
+        ],
+      },
+      {
+        title: '🛠️ Fixes',
+        points: [
+          'Every window fits and scrolls on small phones (including deleting your account on iPhone).',
+          'Your character stays visible while you try on clothes on a phone.',
+          'Activities and pet care happen one at a time, with a short loading moment.',
+          'A room with something the game doesn’t recognize no longer stops it from loading.',
+        ],
+      },
+    ],
+    outro: 'More updates soon. Thank you for playing PocketRoom. 💗',
+  },
+  {
     version: '1.0.1',
     title: 'Major update coming October 20',
     date: '2026-10-18',

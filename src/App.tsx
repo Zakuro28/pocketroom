@@ -250,7 +250,7 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.94, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: 'spring', duration: 0.45, bounce: 0.25 }}
-                className="w-full max-w-sm rounded-[2rem] bg-cream p-6 text-center shadow-2xl"
+                className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain w-full max-w-sm rounded-[2rem] bg-cream p-6 text-center shadow-2xl"
               >
                 <p className="text-3xl" aria-hidden>
                   📱
@@ -283,7 +283,7 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.94, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: 'spring', duration: 0.45, bounce: 0.25, delay: 0.3 }}
-                className="w-full max-w-sm rounded-[2rem] bg-cream p-6 shadow-2xl"
+                className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain w-full max-w-sm rounded-[2rem] bg-cream p-6 shadow-2xl"
               >
                 <p className="text-3xl" aria-hidden>
                   🌤️
