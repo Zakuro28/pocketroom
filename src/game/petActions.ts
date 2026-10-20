@@ -21,7 +21,7 @@ import {
   type Tier,
 } from './pets'
 import { BIRTHDAY_GIFT } from './acts'
-import { addBonus, getSave, setSave, today, uid, type Delivery } from './store'
+import { addBonus, getSave, getSession, setSave, today, uid, type Delivery } from './store'
 
 /**
  * What players do with pets: deliveries arriving at the door, rolling them, feeding, and moving
@@ -91,8 +91,8 @@ export function rollDelivery(id: string): Roll | null {
   if (!delivery) return null
   // A gift rolls like a daily pet (and counts toward the guarantees), unless its round sets the tier
   const gift = delivery.kind === 'gift' ? GIFTS[delivery.round ?? 1] : undefined
-  const daily = (delivery.kind === 'daily' || delivery.kind === 'gift') && !gift?.tier
-  const tier: Tier = gift?.tier ?? (delivery.kind === 'seasonal' ? 'seasonal' : daily ? dailyTier(s.spins.pity) : specialTier())
+  const daily = (delivery.kind === 'daily' || delivery.kind === 'gift') && !gift?.tier && !delivery.tier
+  const tier: Tier = delivery.tier ?? gift?.tier ?? (delivery.kind === 'seasonal' ? 'seasonal' : daily ? dailyTier(s.spins.pity) : specialTier())
   const sp = randomSpecies(tier, delivery.event)
   const pet = makePet(sp, today(), uid())
   const inRoom = s.pets.filter((p) => p.place === 'room').length
@@ -123,6 +123,11 @@ function testDeliveries(have: Delivery[]): Delivery[] {
     .map((k) => ({ id: uid(), kind: k, ...(k === 'seasonal' ? { event: EVENTS[Math.floor(Math.random() * EVENTS.length)].id } : {}) }))
 }
 
+/** Developers only: put a pet of this tier at the door, to roll like any delivery */
+export function devPet(tier: NonNullable<Delivery['tier']>) {
+  setSave((s) => ({ ...s, deliveries: [...s.deliveries, { id: uid(), kind: 'gift', tier }] }))
+}
+
 /** Foster care was full: this foster pet is adopted by a new family and leaves */
 export function adoptAway(uidToGo: string) {
   setSave((s) => ({ ...s, pets: s.pets.filter((p) => !(p.uid === uidToGo && p.place === 'foster')), adopting: null }))
@@ -133,6 +138,8 @@ export const fosterPets = (pets: Pet[]) => pets.filter((p) => p.place === 'foste
 
 /** Has this pet been fed (or petted) today, by you or (living together) your partner? */
 export function isDone(p: PetBody & { fed?: string; petted?: string }, kind: Care) {
+  // Developers testing without daily limits (the shared home's server still counts once a day)
+  if (getSession().devFree && !livingTogether()) return false
   return (kind === 'fed' ? p.fed : p.petted) === today() || careDone(kind, p.uid)
 }
 

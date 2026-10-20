@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { LocateFixed, LogOut, MapPin, Search, Trash2, UserRound, Volume2, VolumeX, X } from 'lucide-react'
 import { canSignIn, deleteAccount, signInWithGoogle, signOut, useUser } from '../lib/auth'
-import { resetProgress, setMuted, today, useSave, wipeDevice } from '../game/store'
+import { resetProgress, setMuted, setSession, today, useSave, useSession, wipeDevice } from '../game/store'
+import { devPet } from '../game/petActions'
+import { TIER_INFO } from '../game/pets'
 import { coupleOf, endLink, otherOf, setAnniversary, useTogether } from '../lib/together'
 import { searchCity, type Place } from '../lib/weather'
 
@@ -234,11 +236,48 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
                 return ok
               }}
             />
+            {dev && <DevTools say={say} />}
             <DangerZone signedIn={!!user} inCouple={!!couple} onClose={onClose} say={say} />
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+const DEV_TIERS = ['common', 'rare', 'epic', 'legendary', 'mythical', 'divine'] as const
+
+/** Developers only: test pets on demand, and switching the once-a-day limits off */
+function DevTools({ say }: { say: (m: string) => void }) {
+  const free = useSession((s) => !!s.devFree)
+  return (
+    <section className="mt-6 rounded-2xl bg-ink p-4 text-cream">
+      <h3 className="text-sm font-bold">🛠️ Developer</h3>
+      <p className="mt-3 text-xs font-semibold text-cream/70">Get a pet (it waits at your door)</p>
+      <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+        {DEV_TIERS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => {
+              devPet(t)
+              say(`${TIER_INFO[t].label} pet at your door 📦`)
+            }}
+            className="chunky rounded-xl bg-white px-2 py-2 text-xs font-bold"
+            style={{ color: TIER_INFO[t].color }}
+          >
+            {TIER_INFO[t].label}
+          </button>
+        ))}
+      </div>
+      <label className="mt-4 flex items-center justify-between gap-3 text-sm font-semibold">
+        <span>
+          No daily limits
+          <span className="block text-xs font-normal text-cream/70">Activities, feeding and petting pay every time. Turns off when you reload.</span>
+        </span>
+        <input type="checkbox" checked={free} onChange={(e) => setSession((s) => ({ ...s, devFree: e.target.checked }))} className="size-5 shrink-0 accent-mint" />
+      </label>
+    </section>
   )
 }
 

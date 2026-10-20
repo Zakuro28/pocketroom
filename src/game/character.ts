@@ -169,7 +169,8 @@ export function goUse(p: Placed, placed: Placed[], say: (msg: string) => void) {
   // Hearts: each activity pays once a day
   rollDay()
   const s = getSave()
-  const usesLeft = USES_PER_DAY - (s.uses[act] ?? 0)
+  // Developers can switch the once-a-day limit off for testing
+  const usesLeft = getSession().devFree ? USES_PER_DAY : USES_PER_DAY - (s.uses[act] ?? 0)
   const capLeft = getSession().cap - s.earnedToday
   const a = ACTS[act]
   const total = usesLeft > 0 && capLeft > 0 ? Math.min(a.hearts * REWARD_MULT, capLeft) : 0

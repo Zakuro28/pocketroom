@@ -46,6 +46,7 @@ const thumbOf = (p: Pet) => ({ sp: speciesOf(p), coat: p.coat, color: p.color })
 
 function deliveryTitle(d: Delivery) {
   if (d.kind === 'daily') return 'Your daily pet'
+  if (d.kind === 'gift' && d.tier && !d.round) return 'Developer pet 🛠️'
   if (d.kind === 'gift') return GIFTS[d.round ?? 1]?.title ?? 'Gift pet for everyone 🎁'
   if (d.kind === 'birthday') return 'Birthday pet 🎂'
   if (d.kind === 'monthsary') return 'Monthsary pet 💞'
@@ -55,6 +56,7 @@ function deliveryTitle(d: Delivery) {
 
 function deliveryOdds(d: Delivery) {
   if (d.kind === 'seasonal') return `One of ${speciesIn('seasonal', d.event).map((s) => s.name).join(' or ')}`
+  if (d.tier) return `A ${TIER_INFO[d.tier].label} pet`
   const gift = d.kind === 'gift' ? GIFTS[d.round ?? 1] : undefined
   if (gift?.tier) return `A ${TIER_INFO[gift.tier].label} pet${gift.hearts ? ` and ${gift.hearts.toLocaleString('en-US')} Hearts` : ''}`
   if (d.kind === 'daily' || d.kind === 'gift') return 'Any pet, Common to Divine'

@@ -10,7 +10,15 @@ import { DEFAULT_OUTFIT } from './look'
 import { bodyOf, type Pet, type PetBody, type Pity } from './pets'
 
 /** A pet waiting at the door: today's free spin, a birthday or monthsary spin, or a seasonal event */
-export type Delivery = { id: string; kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal' | 'gift'; event?: string; /** Which gift round a gift came from (see GIFTS in pets.ts) */ round?: number }
+export type Delivery = {
+  id: string
+  kind: 'daily' | 'birthday' | 'monthsary' | 'seasonal' | 'gift'
+  event?: string
+  /** Which gift round a gift came from (see GIFTS in pets.ts) */
+  round?: number
+  /** A pet of this exact tier (a developer's test pet) */
+  tier?: 'common' | 'rare' | 'epic' | 'legendary' | 'mythical' | 'divine'
+}
 /** What's been handed out already, so each spin comes once */
 export type Spins = { day: string; pity: Pity; birthday: number; monthsary: string; seasonal: string[]; gift?: number }
 
@@ -61,7 +69,11 @@ export type Session = {
   mode: 'play' | 'edit'
   selected: string | null
   /** An item being placed or moved, following the pointer */
-  ghost: (Placed & { valid: boolean; moving?: string }) | null
+  ghost: (Placed & { valid: boolean; moving?: string; /** Not bought yet: a preview from the shop, paid for when it's placed */ buying?: boolean }) | null
+  /** A floor or wallpaper shown on the room before buying it */
+  trying?: { kind: 'floor' | 'wall'; id: string } | null
+  /** Developers only: activities and pet care pay every time instead of once a day (until the page reloads) */
+  devFree?: boolean
   /** The activity your character is doing (started = when it began in ms, 0 while still walking there) */
   doing: { uid: string; act: string; started: number; seconds: number; earned: number; total: number } | null
   /** Whose room you're in, when it isn't your own */
@@ -192,8 +204,8 @@ export const getSession = () => session
 /** The room on screen: someone else's while visiting, otherwise yours */
 export const getPlaced = () => session.visit?.room.placed ?? save.placed
 export const usePlaced = () => useSyncExternalStore(subscribe, getPlaced)
-export const useFloor = () => useSyncExternalStore(subscribe, () => session.visit?.room.floor ?? save.floor)
-export const useWall = () => useSyncExternalStore(subscribe, () => session.visit?.room.wall ?? save.wall)
+export const useFloor = () => useSyncExternalStore(subscribe, () => session.visit?.room.floor ?? (session.trying?.kind === 'floor' ? session.trying.id : save.floor))
+export const useWall = () => useSyncExternalStore(subscribe, () => session.visit?.room.wall ?? (session.trying?.kind === 'wall' ? session.trying.id : save.wall))
 export const setCap = (cap: number) => session.cap !== cap && setSession((s) => ({ ...s, cap }))
 
 /** A new day (local midnight) clears today's Heart count and activity uses. Only forward: winding the clock back never resets it. */
@@ -222,10 +234,24 @@ export function buySurface(id: string, price: number) {
 }
 
 /** Start placing something from storage */
-export function startPlacing(id: string) {
+export function startPlacing(id: string, buying = false) {
   const item = ITEMS[id]
-  setSession((s) => ({ ...s, selected: null, ghost: { uid: uid(), id, x: 0, z: 0, r: 0, wall: item.kind === 'wall' ? 'R' : undefined, valid: false } }))
+  setSession((s) => ({ ...s, selected: null, trying: null, ghost: { uid: uid(), id, x: 0, z: 0, r: 0, wall: item.kind === 'wall' ? 'R' : undefined, valid: false, buying } }))
 }
+
+/** From the shop: see an item in your room first. Nothing is paid until it's placed with buyGhost(). */
+export const previewItem = (id: string) => startPlacing(id, true)
+
+/** Pay for the item being previewed and place it where it is. False if it doesn't fit there or Hearts are short. */
+export function buyGhost() {
+  const g = session.ghost
+  if (!g?.buying || !g.valid || save.hearts < ITEMS[g.id].price) return false
+  if (!buy(g.id)) return false
+  return commitGhost()
+}
+
+/** From the shop: show a floor or wallpaper on the room before buying it (null puts yours back) */
+export const tryOn = (t: { kind: 'floor' | 'wall'; id: string } | null) => setSession((s) => ({ ...s, trying: t, ghost: null, selected: null }))
 
 /** Pick up a placed item to move it */
 export function startMoving(p: Placed) {
@@ -244,8 +270,9 @@ export function rotateGhost() {
 export function commitGhost() {
   const g = session.ghost
   if (!g || !g.valid) return false
-  const { valid: _valid, moving, ...p } = g
+  const { valid: _valid, moving, buying: _buying, ...p } = g
   void _valid
+  void _buying
   setSave((s) => {
     if (moving) {
       // Items sitting on a moved table come along for the ride
