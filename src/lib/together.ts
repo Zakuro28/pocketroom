@@ -22,7 +22,7 @@ export type Link = { id: string; a: string; b: string; kind: LinkKind; status: '
 type HomeRoom = RoomView & { owned: string[]; storage: Record<string, number> }
 export type Home = { link: string; owner: string; room: HomeRoom; room_by: string | null; tz: string; jar: number; day: string | null; earned: number; chem: number; care?: Record<string, string>; couple_gift?: boolean }
 
-type State = { me: string | null; mine: Card | null; links: Link[]; cards: Record<string, Card>; home: Home | null; ready: boolean }
+type State = { me: string | null; mine: Card | null; links: Link[]; cards: Record<string, Card>; home: Home | null; ready: boolean; /** This account is on the developers list (supabase/stage10.sql) */ dev?: boolean }
 
 let state: State = { me: null, mine: null, links: [], cards: {}, home: null, ready: false }
 const listeners = new Set<() => void>()
@@ -301,6 +301,27 @@ async function fixHomeClock() {
   if (!error) await refresh()
 }
 
+/**
+ * Developer accounts are listed on the server (supabase/stage10.sql), never in the game's code. A developer gets
+ * their Hearts once: into the shared jar when living together, otherwise into their own Hearts.
+ * Without stage10.sql nobody is a developer and nothing changes.
+ */
+async function checkDeveloper() {
+  if (!supabase) return
+  const link = getSave().home
+  const { data, error } = await supabase.rpc('dev_status', { p_link: link })
+  if (error || !data) return
+  const r = data as { dev: boolean; hearts: number; jar?: number; gave?: number }
+  set({ dev: r.dev })
+  if (r.jar !== undefined) {
+    applyJar({ jar: r.jar })
+    note(`🛠️ Developer Hearts: +${(r.gave ?? 0).toLocaleString('en-US')} in the jar`)
+  } else if (r.hearts > 0) {
+    setSave((x) => ({ ...x, hearts: x.hearts + r.hearts }))
+    note(`🛠️ Developer Hearts: +${r.hearts.toLocaleString('en-US')} 💗`)
+  }
+}
+
 /** Played today: counts toward Chemistry, and pays it out while you're both online */
 async function checkIn() {
   const c = coupleOf(state)
@@ -335,6 +356,7 @@ export async function startTogether(id: string) {
   else await supabase.from('cards').insert({ id, ...card })
   await refresh()
   void fixHomeClock()
+  void checkDeveloper()
   void checkIn()
 
   // Live: requests arriving, a partner decorating, the jar changing

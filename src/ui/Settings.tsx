@@ -68,6 +68,7 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
   const [breaking, setBreaking] = useState(false)
   const [breakErr, setBreakErr] = useState('')
   const [anniversary, setAnniversaryDate] = useState('')
+  const dev = useTogether((t) => !!t.dev)
   return (
     <AnimatePresence>
       {open && (
@@ -86,7 +87,9 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
             <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-white">
               <X className="size-5" />
             </button>
-            <h2 className="text-xl font-bold">Settings</h2>
+            <h2 className="flex items-center gap-2 text-xl font-bold">
+              Settings {dev && <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs font-bold text-cream">🛠️ Developer</span>}
+            </h2>
 
             {/* Account: sign in with Google to keep your room on any device (and, later, to play together) */}
             <div className="mt-5 rounded-2xl bg-white p-4">
