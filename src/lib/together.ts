@@ -113,6 +113,60 @@ function applyJar(h: Pick<Home, 'jar'> & { earned?: number }) {
   if (last) last.hearts = h.jar
 }
 
+/** Send the shared room (furniture, storage, floors and walls) to the server. If it fails, load the server's copy. */
+async function pushRoom(link: string) {
+  if (!supabase) return
+  pushing = true
+  const g = getSave()
+  const { error } = await supabase
+    .from('homes')
+    .update({ room: { placed: g.placed, floor: g.floor, wall: g.wall, owned: g.owned, storage: g.storage }, room_by: state.me, updated_at: new Date(now()).toISOString() })
+    .eq('link', link)
+  pushing = false
+  if (error) {
+    note(errorText(error))
+    await reloadHome()
+  }
+}
+
+/** Read the shared home fresh from the server and show it (change messages can leave the room out) */
+async function reloadHome() {
+  const link = state.home?.link
+  if (!supabase || !link) return
+  const { data } = await supabase.from('homes').select('*').eq('link', link).maybeSingle()
+  if (!data) return
+  set({ home: data as Home })
+  if (getSave().home === link && !pushing) applyHome(data as Home)
+}
+
+/**
+ * Once per visit: anything either partner had in storage stays. Copies that drifted apart (one of you saved over
+ * the other) come back together by keeping the higher count of each item, and every floor and wallpaper either
+ * of you bought.
+ */
+let mergedFor: string | null = null
+function mergeOnce(h: Home) {
+  if (mergedFor === h.link) return h
+  mergedFor = h.link
+  const s = getSave()
+  const mine = s.storage ?? {}
+  const theirs = h.room.storage ?? {}
+  const storage: Record<string, number> = { ...theirs }
+  let changed = false
+  for (const [id, n] of Object.entries(mine)) {
+    if (n > (storage[id] ?? 0)) {
+      storage[id] = n
+      changed = true
+    }
+  }
+  const owned = [...new Set([...(h.room.owned ?? []), ...(s.owned ?? [])])]
+  if (owned.length !== (h.room.owned ?? []).length) changed = true
+  if (!changed) return h
+  const next = { ...h, room: { ...h.room, storage, owned } }
+  window.setTimeout(() => void pushRoom(h.link), 0)
+  return next
+}
+
 function onSave() {
   if (applying || !supabase || !state.me) return
   const s = getSave()
@@ -130,14 +184,7 @@ function onSave() {
     last = { ...last, placed: s.placed, floor: s.floor, wall: s.wall, owned: s.owned, storage: s.storage }
     clearTimeout(roomTimer)
     pushing = true
-    roomTimer = window.setTimeout(async () => {
-      const g = getSave()
-      await supabase!
-        .from('homes')
-        .update({ room: { placed: g.placed, floor: g.floor, wall: g.wall, owned: g.owned, storage: g.storage }, room_by: state.me, updated_at: new Date(now()).toISOString() })
-        .eq('link', link)
-      pushing = false
-    }, 600)
+    roomTimer = window.setTimeout(() => void pushRoom(link), 600)
   }
 
   // Spending from and earning into the jar: the server keeps the real count
@@ -239,7 +286,7 @@ async function reconcile() {
       return
     }
     if (pushing) applyJar(h)
-    else applyHome(h)
+    else applyHome(mergeOnce(h))
     void claimGift(h)
     return
   }
@@ -338,6 +385,7 @@ async function checkIn() {
 void syncClock()
 
 let channel: RealtimeChannel | null = null
+let watchingFocus = false
 let beat = 0
 let watching = false
 
@@ -364,15 +412,20 @@ export async function startTogether(id: string) {
     .channel(`together-${id}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'links' }, () => void refresh())
     .on('postgres_changes', { event: '*', schema: 'public', table: 'homes' }, (msg) => {
-      const h = msg.new as Home | undefined
+      const h = msg.new as Partial<Home> | undefined
       if (!h?.link || h.link !== state.home?.link) return void refresh()
-      set({ home: h })
       if (getSave().home !== h.link) return
-      // Your own decorating comes back too; only a partner's changes need drawing
-      if (h.room_by !== state.me) applyHome(h)
-      else applyJar(h)
+      // Your own decorating comes back too; only a partner's changes need drawing. The message can leave the room
+      // out (when only the jar changed), so a partner's change is read fresh from the server.
+      if (h.room_by !== state.me) void reloadHome()
+      else if (typeof h.jar === 'number') applyJar({ jar: h.jar, earned: h.earned })
     })
     .subscribe()
+
+  if (!watchingFocus) {
+    watchingFocus = true
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void reloadHome())
+  }
 
   clearInterval(beat)
   beat = window.setInterval(() => {

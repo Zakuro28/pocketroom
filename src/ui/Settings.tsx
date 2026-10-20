@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { LocateFixed, LogOut, MapPin, Search, Trash2, UserRound, Volume2, VolumeX, X } from 'lucide-react'
 import { canSignIn, deleteAccount, signInWithGoogle, signOut, useUser } from '../lib/auth'
-import { resetProgress, setMuted, setSession, today, useSave, useSession, wipeDevice } from '../game/store'
+import { addBonus, resetProgress, setMuted, setSession, today, useSave, useSession, wipeDevice } from '../game/store'
 import { devPet } from '../game/petActions'
 import { TIER_INFO } from '../game/pets'
 import { coupleOf, endLink, otherOf, setAnniversary, useTogether } from '../lib/together'
@@ -253,6 +253,17 @@ function DevTools({ say }: { say: (m: string) => void }) {
   return (
     <section className="mt-6 rounded-2xl bg-ink p-4 text-cream">
       <h3 className="text-sm font-bold">🛠️ Developer</h3>
+      <button
+        type="button"
+        onClick={() => {
+          // Living together it goes into the jar, which takes at most 1,500 at a time
+          for (let left = 5000; left > 0; left -= 1500) addBonus(Math.min(1500, left))
+          say('+5,000 Hearts 💗')
+        }}
+        className="chunky mt-3 w-full rounded-xl bg-heart py-2.5 text-sm font-bold text-white"
+      >
+        +5,000 Hearts 💗
+      </button>
       <p className="mt-3 text-xs font-semibold text-cream/70">Get a pet (it waits at your door)</p>
       <div className="mt-1.5 grid grid-cols-3 gap-1.5">
         {DEV_TIERS.map((t) => (

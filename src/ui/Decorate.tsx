@@ -32,7 +32,7 @@ const sheet = { initial: { y: 40, opacity: 0 }, animate: { y: 0, opacity: 1 }, e
  * shows in your room first (furniture as a preview to place, floors and wallpaper on the room) and is paid for only
  * when you tap Buy.
  */
-export default function Decorate({ say }: { say: (msg: string) => void }) {
+export default function Decorate({ say, onDone }: { say: (msg: string) => void; onDone: () => void }) {
   const ghost = useSession((s) => s.ghost)
   const selected = useSession((s) => s.selected)
   const trying = useSession((s) => s.trying)
@@ -65,7 +65,7 @@ export default function Decorate({ say }: { say: (msg: string) => void }) {
         ) : selected ? (
           <SelectedBar key={selected} uid={selected} say={say} />
         ) : (
-          <Catalog key="catalog" />
+          <Catalog key="catalog" onDone={onDone} />
         )}
       </AnimatePresence>
     </>
@@ -97,7 +97,7 @@ function Card({ thumb, name, children, onClick, active = false }: { thumb: React
   )
 }
 
-function Catalog() {
+function Catalog({ onDone }: { onDone: () => void }) {
   const storage = useSave((s) => s.storage)
   const hearts = useSave((s) => s.hearts)
   const floor = useSave((s) => s.floor)
@@ -129,6 +129,10 @@ function Catalog() {
   return (
     <motion.div {...sheet} className="pointer-events-auto absolute inset-x-0 bottom-0 mx-auto flex max-h-[38dvh] max-w-4xl flex-col rounded-t-[2rem] bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(74,52,40,0.18)]">
       <Slide label="Shop sections" className="gap-1.5 px-4 pt-4 pb-2">
+        {/* Done lives here, in the panel, so the top of the room stays free to decorate */}
+        <button type="button" onClick={onDone} className="chunky flex shrink-0 items-center gap-1.5 rounded-full bg-mint px-4 py-2 text-sm font-bold text-white">
+          <Check className="size-4" strokeWidth={3} aria-hidden /> Done
+        </button>
         {tabs.map((t) => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`chunky flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold whitespace-nowrap ${tab === t.id ? 'bg-ink text-cream' : 'bg-white text-ink ring-1 ring-line'}`}>
             <span aria-hidden>{t.icon}</span>

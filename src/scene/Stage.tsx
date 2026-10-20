@@ -7,7 +7,7 @@ import { CELL, ROOM, WALL_H, centerOf, rectOf, type Placed } from '../game/grid'
 import { ITEMS } from '../game/catalog'
 import { getSession, setSession, usePlaced, useSave, useSession } from '../game/store'
 import { bindKeys, goUse, guestSpot, settle, walkTo } from '../game/character'
-import { justDragged, panBy, resetView, view, zoomAt } from './view'
+import { justDragged, panBy, view, zoomAt } from './view'
 import { coupleOf, isOnline, otherOf, useTogether } from '../lib/together'
 import { them, them2, useTour } from '../lib/tour'
 import { partnerAt, usePartnerHere, useVisitor, visitorAt } from '../lib/homeLive'
@@ -31,7 +31,7 @@ const UP = new Vector3(-1, 2, -1).normalize()
 
 /**
  * The isometric camera, zoomed so the whole studio fits any screen. While decorating, the room eases up into the
- * space above the drawer. While playing you can zoom in (wheel, pinch, buttons) and look around.
+ * space above the drawer. You can zoom in (wheel, pinch) and look around, playing or decorating.
  */
 function Camera({ editing }: { editing: boolean }) {
   const size = useThree((s) => s.size)
@@ -48,8 +48,8 @@ function Camera({ editing }: { editing: boolean }) {
     const s = cur.current
     const k = Math.min(1, dt * 10)
     const lift = editing ? 1 : 0
-    const mul = editing ? 1 : view.mul
-    const pan = editing ? ORIGIN : view.pan
+    const mul = view.mul
+    const pan = view.pan
     const still = Math.abs(s.lift - lift) < 0.001 && Math.abs(s.mul - mul) < 0.001 && s.pan.distanceToSquared(pan) < 1e-8
     if (still && s.set) return
     s.set = true
@@ -73,13 +73,10 @@ function Camera({ editing }: { editing: boolean }) {
   return <OrthographicCamera ref={cam} makeDefault zoom={fit} position={[CENTER[0] + 14, CENTER[1] + 14, CENTER[2] + 14]} near={0.1} far={100} onUpdate={(c) => c.lookAt(...CENTER)} />
 }
 
-const ORIGIN = new Vector3()
-
 /** Mouse wheel and pinch zoom toward the spot under them; dragging looks around while zoomed in */
 function ZoomInput({ editing }: { editing: boolean }) {
   const el = useThree((s) => s.gl.domElement)
   useEffect(() => {
-    if (editing) return void resetView()
     const offset = (x: number, y: number) => {
       const r = el.getBoundingClientRect()
       return [x - r.left - r.width / 2, y - r.top - r.height / 2] as const
@@ -123,8 +120,9 @@ function ZoomInput({ editing }: { editing: boolean }) {
         return
       }
       down.set(e.pointerId, now)
-      // One finger or the mouse: a real drag (not a tap) moves the view, but only while zoomed in
-      if (!start || view.mul <= 1.01) return
+      // One finger or the mouse: a real drag (not a tap) moves the view, but only while zoomed in, and not while
+      // placing something (then the drag moves the item)
+      if (!start || view.mul <= 1.01 || (editing && getSession().ghost)) return
       if (!dragging && Math.hypot(now.x - start.x, now.y - start.y) < 8) return
       dragging = true
       panBy(now.x - last.x, now.y - last.y)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
-import { Check, House, Paintbrush } from 'lucide-react'
+import { House, Paintbrush } from 'lucide-react'
 import { cancel } from './game/character'
 import { rollDay, setProfile, setSession, useSave, useSession, setSave } from './game/store'
 import { canSignIn, playAsGuest, signInWithGoogle, useAuthReady, useKicked, useSaveLoading, useUser } from './lib/auth'
@@ -191,12 +191,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div className="absolute top-[calc(max(0.75rem,env(safe-area-inset-top))+6.75rem)] left-3 sm:top-5 sm:left-1/2 sm:-translate-x-1/2">
-                <button type="button" onClick={toggleEdit} className="chunky pointer-events-auto flex items-center gap-2 rounded-full bg-mint px-5 py-3 font-bold text-white">
-                  <Check className="size-5" strokeWidth={3} aria-hidden /> Done
-                </button>
-              </div>
-              <Decorate say={say} />
+              <Decorate say={say} onDone={toggleEdit} />
             </>
           )}
         </div>
