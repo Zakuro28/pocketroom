@@ -155,6 +155,89 @@ export function ClothingIcon({ c, className = '' }: { c: Clothing; className?: s
         </>
       )
       break
+    case 'tank':
+      body = <path {...p} d="M18 7 L18 14 C18 17 15 18 14 21 L14 41 L34 41 L34 21 C33 18 30 17 30 14 L30 7 L27 7 C27 12 21 12 21 7 Z" />
+      break
+    case 'sandals':
+      body = (
+        <>
+          <path {...p} d="M5 36 C5 31 12 30 22 31 C32 31 43 31 43 35 C43 38 6 39 5 36 Z" />
+          <path d="M12 31 C14 23 24 23 26 31" fill="none" stroke={fill} strokeWidth={4} strokeLinecap="round" />
+          <path d="M12 31 C14 23 24 23 26 31" fill="none" stroke={line} strokeWidth={1.2} />
+        </>
+      )
+      break
+    case 'beret':
+      body = (
+        <>
+          <ellipse {...p} cx={23} cy={27} rx={19} ry={9} transform="rotate(-8 23 27)" />
+          <path {...p} d="M24 18 L25 13" />
+        </>
+      )
+      break
+    case 'tophat':
+      body = (
+        <>
+          <rect {...p} x={14} y={8} width={20} height={26} rx={2} />
+          <rect x={14} y={27} width={20} height={5} fill={accent} />
+          <ellipse {...p} cx={24} cy={36} rx={19} ry={4} />
+        </>
+      )
+      break
+    case 'bow':
+      body = (
+        <>
+          <path {...p} d="M24 24 L7 13 L7 35 Z" />
+          <path {...p} d="M24 24 L41 13 L41 35 Z" />
+          <circle {...p} cx={24} cy={24} r={5} />
+        </>
+      )
+      break
+    case 'catEars':
+      body = (
+        <>
+          <path d="M6 36 C10 22 38 22 42 36" fill="none" stroke={line} strokeWidth={3} />
+          <path {...p} d="M9 30 L12 9 L22 24 Z" />
+          <path {...p} d="M39 30 L36 9 L26 24 Z" />
+          <path fill={accent} d="M12.5 26 L13.5 15 L19 23 Z M35.5 26 L34.5 15 L29 23 Z" />
+        </>
+      )
+      break
+    case 'halo':
+      body = (
+        <>
+          <ellipse cx={24} cy={24} rx={18} ry={8} fill="none" stroke={fill} strokeWidth={5} />
+          <ellipse cx={24} cy={24} rx={18} ry={8} fill="none" stroke={line} strokeWidth={1} />
+        </>
+      )
+      break
+    case 'hearts':
+      body = (
+        <>
+          {[14, 34].map((x) => (
+            <path key={x} {...p} d={`M${x} 32 L${x - 9} 23 C${x - 12} 19 ${x - 7} 13 ${x} 18 C${x + 7} 13 ${x + 12} 19 ${x + 9} 23 Z`} />
+          ))}
+          <path d="M22 21 C23 19 25 19 26 21" fill="none" stroke={line} strokeWidth={2.2} />
+        </>
+      )
+      break
+    case 'mask':
+      body = (
+        <>
+          <path d="M9 18 L4 15 M39 18 L44 15 M9 32 L4 35 M39 32 L44 35" stroke={line} strokeWidth={1.6} />
+          <rect {...p} x={9} y={14} width={30} height={22} rx={7} />
+          <path d="M14 22 H34 M14 28 H34" stroke={line} strokeWidth={1.2} />
+        </>
+      )
+      break
+    case 'monocle':
+      body = (
+        <>
+          <circle {...p} fill={`${fill}33`} cx={20} cy={20} r={11} strokeWidth={3} stroke={fill} />
+          <path d="M29 26 C33 32 34 38 38 43" fill="none" stroke={line} strokeWidth={1.6} strokeDasharray="2 2" />
+        </>
+      )
+      break
     case 'headphones':
       body = (
         <>

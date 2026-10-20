@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, X } from 'lucide-react'
-import type { Profile, Slot } from '../game/look'
-import { buyClothing, useSave, wear } from '../game/store'
+import { DYEABLE, type Dyeable, type Profile, type Slot } from '../game/look'
+import { buyClothing, dye, useSave, wear } from '../game/store'
 import { CLOTHES, CLOTHING, RARITY, SLOTS, type Clothing } from '../game/wardrobe'
 import { blip, buyChime, nope } from '../lib/sound'
 import { Preview } from './Creator'
@@ -10,6 +10,35 @@ import { ClothingIcon } from './ClothingIcon'
 import { Slide } from './Slide'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
+
+/** Quick dye colors; the last swatch opens a picker for any color at all */
+const DYES = ['#ffffff', '#2b2a30', '#9aa3ad', '#e2443a', '#f29e4c', '#ffcf5a', '#7bc96f', '#2fb3a0', '#5bb8d6', '#3c5fd6', '#a77bf0', '#f28bb8', '#c4a77d', '#7a4f33']
+
+/** Pick a color for the piece you're wearing: its own color, a quick swatch, or anything from the picker */
+function DyeRow({ slot, own, value }: { slot: Dyeable; own: string; value?: string }) {
+  const pick = (c: string | null) => {
+    blip()
+    dye(slot, c)
+  }
+  const ring = (on: boolean) => (on ? 'ring-3 ring-ink' : 'ring-1 ring-black/10')
+  return (
+    <div className="mt-1">
+      <p className="text-xs font-semibold text-ink-soft">Color (free)</p>
+      <Slide label="Clothing color" className="-mx-1 gap-2 px-1 pt-1.5 pb-2">
+        <button type="button" onClick={() => pick(null)} aria-label="Original color" className={`grid size-8 shrink-0 place-items-center rounded-full text-[10px] font-bold ring-offset-2 ring-offset-cream ${ring(!value)}`} style={{ background: own }}>
+          <span className="rounded bg-white/85 px-0.5 text-ink">✦</span>
+        </button>
+        {DYES.map((c) => (
+          <button key={c} type="button" onClick={() => pick(c)} aria-label={c} className={`size-8 shrink-0 rounded-full ring-offset-2 ring-offset-cream ${ring(value === c)}`} style={{ background: c }} />
+        ))}
+        <label className={`relative grid size-8 shrink-0 cursor-pointer place-items-center rounded-full ring-offset-2 ring-offset-cream ${ring(!!value && !DYES.includes(value))}`} style={{ background: 'conic-gradient(#ef5e57, #f2d36b, #7bc96f, #5bb8d6, #a77bf0, #f28bb8, #ef5e57)' }}>
+          <span className="sr-only">Any color</span>
+          <input type="color" value={value ?? own} onChange={(e) => dye(slot, e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+        </label>
+      </Slide>
+    </div>
+  )
+}
 
 /** A little drawing of a piece of clothing for the closet grid, in its own colors */
 function Swatch({ c }: { c: Clothing }) {
@@ -29,8 +58,10 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
   const [trying, setTrying] = useState<Clothing | null>(null)
   if (!profile) return null
 
-  const preview: Profile = trying ? { ...profile, outfit: { ...profile.outfit, [trying.slot]: trying.id } } : profile
+  // Trying something on shows it in its own color
+  const preview: Profile = trying ? { ...profile, outfit: { ...profile.outfit, [trying.slot]: trying.id }, tint: { ...profile.tint, [trying.slot]: undefined } } : profile
   const optional = slot === 'hat' || slot === 'face'
+  const dyeable = DYEABLE.includes(slot as Dyeable) ? (slot as Dyeable) : null
 
   const pick = (c: Clothing) => {
     blip()
@@ -70,11 +101,11 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
             </button>
 
             {/* Try-on preview */}
-            <div className="relative h-56 shrink-0 bg-linear-to-b from-[#ffe6cf] to-cream sm:h-auto sm:w-[40%]">
+            <div className="relative h-52 shrink-0 bg-linear-to-b from-[#ffe6cf] to-cream sm:h-auto sm:w-[40%]">
               <Preview profile={preview} />
               <AnimatePresence>
                 {trying && (
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.1 } }} className="absolute inset-x-3 bottom-3 rounded-2xl bg-white p-3 shadow-lg">
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.1 } }} className="absolute inset-x-3 bottom-3 hidden rounded-2xl bg-white p-3 shadow-lg sm:block">
                     <p className="text-xs font-bold tracking-wide uppercase" style={{ color: RARITY[trying.rarity].color }}>
                       {RARITY[trying.rarity].label}
                     </p>
@@ -91,6 +122,24 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
                 )}
               </AnimatePresence>
             </div>
+
+            {/* On a phone the buy bar sits under the preview, so it never covers your character */}
+            {trying && (
+              <div className="flex shrink-0 items-center gap-2 border-b border-line bg-white px-3 py-2 sm:hidden">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] leading-tight font-bold tracking-wide uppercase" style={{ color: RARITY[trying.rarity].color }}>
+                    {RARITY[trying.rarity].label}
+                  </p>
+                  <p className="truncate text-sm font-semibold">{trying.name}</p>
+                </div>
+                <button type="button" onClick={() => setTrying(null)} className="chunky shrink-0 rounded-xl bg-paper px-3 py-2 text-sm font-semibold">
+                  Take off
+                </button>
+                <button type="button" onClick={buy} disabled={hearts < trying.price} className="chunky shrink-0 rounded-xl bg-heart px-3 py-2 text-sm font-bold text-white disabled:bg-[#d7cfc4]">
+                  {hearts < trying.price ? `Need ${fmt(trying.price - hearts)}` : `Buy 💗 ${fmt(trying.price)}`}
+                </button>
+              </div>
+            )}
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4 sm:p-5">
               <h2 className="text-xl font-bold">Wardrobe</h2>
@@ -109,6 +158,7 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
                   </button>
                 ))}
               </Slide>
+              {dyeable && !trying && profile.outfit[dyeable] && <DyeRow slot={dyeable} own={CLOTHING[profile.outfit[dyeable]!]?.color ?? '#ffffff'} value={profile.tint?.[dyeable]} />}
               <div className="mt-3 grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] content-start gap-2.5 overflow-y-auto pb-1">
                 {CLOTHES.filter((c) => c.slot === slot).map((c) => {
                   const has = owned.includes(c.id)

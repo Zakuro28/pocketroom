@@ -3,7 +3,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Html, RoundedBox } from '@react-three/drei'
 import type { Group, Mesh } from 'three'
 import { me, step, type Pose } from '../game/character'
-import { BUILDS, DEFAULT_PROFILE, gameHeight, heightScale, type HairStyle, type Profile } from '../game/look'
+import { BIG_HAIR, BUILDS, DEFAULT_PROFILE, gameHeight, heightScale, type HairStyle, type Profile } from '../game/look'
 import { useSave } from '../game/store'
 import { useTogether } from '../lib/together'
 import { useTour } from '../lib/tour'
@@ -42,12 +42,45 @@ function animate(rig: Rig, pose: Pose | 'wave', walking: boolean, t: number) {
   rig.eyes.current!.scale.y = lie ? 0.15 : t % 3.6 < 0.12 ? 0.15 : 1
 }
 
+/** A piece of clothing in the color the player dyed it, if they picked one */
+const dyed = (c: Clothing, color?: string): Clothing => (color ? { ...c, color } : c)
+
 const Mat = ({ color, rough = 0.8 }: { color: string; rough?: number }) => <meshStandardMaterial color={color} roughness={rough} />
+
+/** A rounded block of hair: size, position, and an optional tilt */
+function Lock({ color, size, at, rz = 0, rx = 0 }: { color: string; size: [number, number, number]; at: [number, number, number]; rz?: number; rx?: number }) {
+  return (
+    <RoundedBox args={size} radius={Math.min(...size) * 0.45} position={at} rotation={[rx, 0, rz]}>
+      <Mat color={color} />
+    </RoundedBox>
+  )
+}
+
+/** A round bit of hair (buns, curls, braid links) */
+function Puff({ color, r, at, scale = [1, 1, 1] }: { color: string; r: number; at: [number, number, number]; scale?: [number, number, number] }) {
+  return (
+    <mesh position={at} scale={scale}>
+      <sphereGeometry args={[r, 12, 10]} />
+      <Mat color={color} />
+    </mesh>
+  )
+}
+
+/** A braid hanging down from a point: a column of links, each a little smaller */
+const Braid = ({ color, x, y, z, links = 4 }: { color: string; x: number; y: number; z: number; links?: number }) => (
+  <>
+    {Array.from({ length: links }, (_, k) => (
+      <Puff key={k} color={color} r={0.05 - k * 0.005} at={[x, y - k * 0.075, z]} scale={[1, 1.15, 1]} />
+    ))}
+  </>
+)
 
 function Hair({ style, color, hatOn }: { style: HairStyle; color: string; hatOn: boolean }) {
   if (style === 'bald') return null
   // Under a hat, tall styles tuck in so nothing pokes through
-  const s: HairStyle = hatOn && (style === 'spiky' || style === 'curly' || style === 'buns') ? 'short' : style
+  const s: HairStyle = hatOn && BIG_HAIR.includes(style) ? 'short' : style
+  const extra = MORE_HAIR[s]
+  if (extra) return extra(color)
   const cap = (
     <RoundedBox args={[0.41, s === 'buzz' ? 0.12 : 0.2, 0.36]} radius={s === 'buzz' ? 0.05 : 0.09} position={[0, s === 'buzz' ? 0.13 : 0.1, -0.015]}>
       <Mat color={color} />
@@ -167,8 +200,262 @@ function Hair({ style, color, hatOn }: { style: HairStyle; color: string; hatOn:
   )
 }
 
+// The head is 0.38 wide, 0.34 tall and 0.33 deep, centered on 0: the top is at y 0.17, the face at z 0.165
+
+/** The usual cap of hair on top of the head */
+const Top = ({ color, h = 0.2, y = 0.1 }: { color: string; h?: number; y?: number }) => <Lock color={color} size={[0.41, h, 0.36]} at={[0, y, -0.015]} />
+/** Hair down the back of the head */
+const Back = ({ color, h, y, w = 0.41 }: { color: string; h: number; y: number; w?: number }) => <Lock color={color} size={[w, h, 0.12]} at={[0, y, -0.12]} />
+/** Hair over the forehead */
+const Fringe = ({ color, tilt = -0.12, x = 0.02, y = 0.07, h = 0.07 }: { color: string; tilt?: number; x?: number; y?: number; h?: number }) => <Lock color={color} size={[0.36, h, 0.06]} at={[x, y, 0.15]} rz={tilt} />
+/** Hair down both sides of the face */
+const Sides = ({ color, h, y = -0.06 }: { color: string; h: number; y?: number }) => (
+  <>
+    {[-0.2, 0.2].map((x) => (
+      <Lock key={x} color={color} size={[0.06, h, 0.24]} at={[x, y, -0.05]} />
+    ))}
+  </>
+)
+
+/** The hairstyles added in 1.1.0, each built from the same few pieces */
+const MORE_HAIR: Partial<Record<HairStyle, (c: string) => React.ReactNode>> = {
+  pixie: (c) => (
+    <>
+      <Top color={c} h={0.17} y={0.11} />
+      <Back color={c} h={0.17} y={0.05} />
+      <Lock color={c} size={[0.3, 0.06, 0.06]} at={[0.05, 0.1, 0.155]} rz={-0.28} />
+    </>
+  ),
+  bowl: (c) => (
+    <>
+      <Lock color={c} size={[0.43, 0.2, 0.38]} at={[0, 0.09, -0.01]} />
+      <Fringe color={c} tilt={0} x={0} y={0.06} h={0.09} />
+      {[-0.205, 0.205].map((x) => (
+        <Lock key={x} color={c} size={[0.05, 0.16, 0.3]} at={[x, 0.02, -0.01]} />
+      ))}
+      <Back color={c} h={0.2} y={0.03} />
+    </>
+  ),
+  mohawk: (c) => (
+    <>
+      <Lock color={c} size={[0.4, 0.1, 0.35]} at={[0, 0.13, -0.015]} />
+      {[-0.13, -0.065, 0, 0.065, 0.13].map((z, k) => (
+        <Lock key={z} color={c} size={[0.07, 0.16 - Math.abs(k - 2) * 0.02, 0.075]} at={[0, 0.25 - Math.abs(k - 2) * 0.01, z]} />
+      ))}
+    </>
+  ),
+  fauxhawk: (c) => (
+    <>
+      <Top color={c} h={0.17} y={0.11} />
+      {[-0.08, 0, 0.08].map((z) => (
+        <mesh key={z} position={[0, 0.23, z]}>
+          <coneGeometry args={[0.06, 0.12, 6]} />
+          <Mat color={c} />
+        </mesh>
+      ))}
+    </>
+  ),
+  quiff: (c) => (
+    <>
+      <Top color={c} />
+      <Back color={c} h={0.2} y={0.04} />
+      <Lock color={c} size={[0.32, 0.13, 0.16]} at={[0, 0.23, 0.1]} rx={-0.45} />
+    </>
+  ),
+  undercut: (c) => (
+    <>
+      <Lock color={c} size={[0.4, 0.09, 0.35]} at={[0, 0.13, -0.015]} />
+      <Lock color={c} size={[0.36, 0.1, 0.34]} at={[0.02, 0.21, 0]} rz={-0.08} />
+      <Lock color={c} size={[0.26, 0.07, 0.07]} at={[0.08, 0.17, 0.15]} rz={-0.4} />
+    </>
+  ),
+  mullet: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} />
+      <Back color={c} h={0.44} y={-0.07} w={0.36} />
+    </>
+  ),
+  afro: (c) => <Puff color={c} r={0.27} at={[0, 0.12, -0.06]} scale={[1.1, 0.9, 0.85]} />,
+  wavy: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} tilt={-0.2} />
+      <Back color={c} h={0.46} y={-0.08} />
+      {[-0.2, 0.2].map((x) =>
+        [0, 1, 2].map((k) => <Lock key={`${x}${k}`} color={c} size={[0.07, 0.15, 0.22]} at={[x + (k % 2 ? 0.015 : -0.015) * Math.sign(x), 0.04 - k * 0.13, -0.05]} rz={(k % 2 ? 0.15 : -0.15) * Math.sign(x)} />),
+      )}
+    </>
+  ),
+  braids: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} tilt={0} x={0} />
+      <Back color={c} h={0.24} y={0.02} />
+      <Braid color={c} x={-0.17} y={-0.07} z={-0.06} />
+      <Braid color={c} x={0.17} y={-0.07} z={-0.06} />
+    </>
+  ),
+  pigtails: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} tilt={0} x={0} />
+      <Back color={c} h={0.24} y={0.02} />
+      {[-0.25, 0.25].map((x) => (
+        <Puff key={x} color={c} r={0.07} at={[x, -0.04, -0.06]} scale={[0.85, 1.5, 0.85]} />
+      ))}
+    </>
+  ),
+  twinTails: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} tilt={0} x={0} />
+      <Back color={c} h={0.24} y={0.02} />
+      {[-0.24, 0.24].map((x) => (
+        <group key={x}>
+          <Puff color={c} r={0.06} at={[x, 0.15, -0.06]} />
+          <Lock color={c} size={[0.09, 0.42, 0.09]} at={[x * 1.12, -0.06, -0.08]} rz={Math.sign(x) * 0.1} />
+        </group>
+      ))}
+    </>
+  ),
+  topknot: (c) => (
+    <>
+      <Top color={c} h={0.17} y={0.11} />
+      <Back color={c} h={0.18} y={0.05} />
+      <Puff color={c} r={0.09} at={[0, 0.27, -0.03]} />
+    </>
+  ),
+  manBun: (c) => (
+    <>
+      <Top color={c} />
+      <Back color={c} h={0.2} y={0.04} />
+      <Puff color={c} r={0.08} at={[0, 0.1, -0.23]} />
+    </>
+  ),
+  halfUp: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} />
+      <Back color={c} h={0.5} y={-0.1} />
+      <Sides color={c} h={0.42} />
+      <Puff color={c} r={0.065} at={[0, 0.16, -0.22]} />
+    </>
+  ),
+  sideBraid: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} tilt={-0.25} />
+      <Back color={c} h={0.24} y={0.02} />
+      <Braid color={c} x={0.17} y={-0.04} z={0.06} links={5} />
+    </>
+  ),
+  bangs: (c) => (
+    <>
+      <Top color={c} />
+      <Fringe color={c} tilt={0} x={0} y={0.06} h={0.1} />
+      <Back color={c} h={0.52} y={-0.11} />
+      <Sides color={c} h={0.44} />
+    </>
+  ),
+  dreads: (c) => (
+    <>
+      <Top color={c} />
+      {Array.from({ length: 11 }, (_, k) => {
+        const a = -Math.PI * 0.85 + (k / 10) * Math.PI * 1.7
+        return <Lock key={k} color={c} size={[0.05, 0.36, 0.05]} at={[Math.sin(a) * 0.2, -0.05, -Math.cos(a) * 0.16 - 0.02]} rz={Math.sin(a) * 0.12} />
+      })}
+    </>
+  ),
+  slicked: (c) => (
+    <>
+      <Lock color={c} size={[0.41, 0.17, 0.37]} at={[0, 0.11, -0.03]} />
+      <Back color={c} h={0.22} y={0.03} />
+    </>
+  ),
+  shag: (c) => (
+    <>
+      <Top color={c} />
+      {[-0.11, 0, 0.11].map((x, k) => (
+        <Lock key={x} color={c} size={[0.13, 0.09 - (k % 2) * 0.02, 0.06]} at={[x, 0.065 + (k % 2) * 0.01, 0.15]} rz={x * -1.5} />
+      ))}
+      <Back color={c} h={0.36} y={-0.04} />
+      <Sides color={c} h={0.3} y={-0.02} />
+    </>
+  ),
+}
+
 function Hat({ c }: { c: Clothing }) {
   switch (c.cut) {
+    case 'beret':
+      return (
+        <group position={[0.02, 0.19, -0.01]} rotation-z={-0.22}>
+          <mesh scale={[1, 0.32, 1]}>
+            <sphereGeometry args={[0.235, 22, 12]} />
+            <Mat color={c.color} />
+          </mesh>
+          <mesh position-y={0.08}>
+            <cylinderGeometry args={[0.012, 0.012, 0.04, 6]} />
+            <Mat color={c.color} />
+          </mesh>
+        </group>
+      )
+    case 'tophat':
+      return (
+        <group position-y={0.17}>
+          <mesh position-y={0.005}>
+            <cylinderGeometry args={[0.27, 0.27, 0.02, 28]} />
+            <Mat color={c.color} rough={0.5} />
+          </mesh>
+          <mesh position-y={0.14}>
+            <cylinderGeometry args={[0.16, 0.15, 0.27, 24]} />
+            <Mat color={c.color} rough={0.5} />
+          </mesh>
+          <mesh position-y={0.04}>
+            <cylinderGeometry args={[0.152, 0.152, 0.05, 24]} />
+            <Mat color={c.accent ?? '#c94f3b'} />
+          </mesh>
+        </group>
+      )
+    case 'bow':
+      return (
+        <group position={[0.12, 0.2, 0.02]} rotation-z={-0.35}>
+          {[-1, 1].map((sx) => (
+            <mesh key={sx} position-x={sx * 0.055} rotation-z={(sx * Math.PI) / 2} scale={[1, 1, 0.5]}>
+              <coneGeometry args={[0.05, 0.1, 4]} />
+              <Mat color={c.color} />
+            </mesh>
+          ))}
+          <mesh>
+            <sphereGeometry args={[0.025, 10, 8]} />
+            <Mat color={c.color} />
+          </mesh>
+        </group>
+      )
+    case 'catEars':
+      return (
+        <group position-y={0.2}>
+          {[-0.12, 0.12].map((x) => (
+            <group key={x} position-x={x} rotation-z={-x * 1.6}>
+              <mesh scale={[1, 1, 0.45]}>
+                <coneGeometry args={[0.065, 0.13, 4]} />
+                <Mat color={c.color} />
+              </mesh>
+              <mesh position={[0, -0.01, 0.018]} scale={[1, 1, 0.3]}>
+                <coneGeometry args={[0.035, 0.08, 4]} />
+                <Mat color={c.accent ?? '#f6b8c2'} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      )
+    case 'halo':
+      return (
+        <mesh position-y={0.36} rotation-x={Math.PI / 2}>
+          <torusGeometry args={[0.15, 0.02, 10, 32]} />
+          <meshStandardMaterial color={c.color} emissive={c.color} emissiveIntensity={0.8} roughness={0.3} />
+        </mesh>
+      )
     case 'cap':
       return (
         <group position-y={0.13}>
@@ -269,6 +556,56 @@ function FaceWear({ c, bigHair = false }: { c: Clothing; bigHair?: boolean }) {
       </group>
     )
   }
+  if (c.cut === 'mask')
+    return (
+      <group position={[0, -0.095, 0.168]}>
+        <RoundedBox args={[0.24, 0.12, 0.03]} radius={0.012}>
+          <Mat color={c.color} rough={1} />
+        </RoundedBox>
+        {[-1, 1].map((sx) => (
+          <mesh key={sx} position={[sx * 0.16, 0.03, -0.06]} rotation-y={sx * 0.9}>
+            <boxGeometry args={[0.13, 0.008, 0.008]} />
+            <Mat color={c.color} />
+          </mesh>
+        ))}
+      </group>
+    )
+  if (c.cut === 'monocle')
+    return (
+      <group position={[0.075, -0.02, 0.175]}>
+        <mesh>
+          <torusGeometry args={[0.05, 0.008, 6, 20]} />
+          <meshStandardMaterial color={c.color} metalness={0.7} roughness={0.25} />
+        </mesh>
+        <mesh position={[0.035, -0.1, -0.01]} rotation-z={0.3}>
+          <boxGeometry args={[0.005, 0.15, 0.005]} />
+          <meshStandardMaterial color={c.color} metalness={0.7} roughness={0.25} />
+        </mesh>
+      </group>
+    )
+  if (c.cut === 'hearts')
+    return (
+      <group position={[0, -0.02, 0.172]}>
+        {[-0.075, 0.075].map((x) => (
+          <group key={x} position-x={x} scale={[1, 1, 0.35]}>
+            {[-0.022, 0.022].map((bx) => (
+              <mesh key={bx} position={[bx, 0.012, 0]}>
+                <sphereGeometry args={[0.03, 12, 10]} />
+                <meshStandardMaterial color={c.color} roughness={0.15} metalness={0.2} />
+              </mesh>
+            ))}
+            <mesh position-y={-0.018} rotation-z={Math.PI}>
+              <coneGeometry args={[0.05, 0.06, 4]} />
+              <meshStandardMaterial color={c.color} roughness={0.15} metalness={0.2} />
+            </mesh>
+          </group>
+        ))}
+        <mesh>
+          <boxGeometry args={[0.04, 0.01, 0.01]} />
+          <Mat color={c.color} />
+        </mesh>
+      </group>
+    )
   const shades = c.cut === 'shades'
   return (
     <group position={[0, -0.02, 0.172]}>
@@ -293,7 +630,32 @@ function FaceWear({ c, bigHair = false }: { c: Clothing; bigHair?: boolean }) {
 }
 
 /** A leg: thigh, shin, then the shoe */
-function LegParts({ upper, lower, shoes }: { upper: string; lower: string; shoes: Clothing }) {
+function LegParts({ upper, lower, shoes, skin }: { upper: string; lower: string; shoes: Clothing; skin: string }) {
+  if (shoes.cut === 'sandals')
+    return (
+      <>
+        <mesh position-y={-0.05} castShadow>
+          <boxGeometry args={[0.1, 0.1, 0.11]} />
+          <Mat color={upper} />
+        </mesh>
+        <mesh position-y={-0.12} castShadow>
+          <boxGeometry args={[0.095, 0.06, 0.105]} />
+          <Mat color={lower} />
+        </mesh>
+        {/* Bare feet on a flat sole, with a strap across */}
+        <RoundedBox args={[0.1, 0.045, 0.14]} radius={0.018} position={[0, -0.18, 0.015]} castShadow>
+          <Mat color={skin} />
+        </RoundedBox>
+        <mesh position={[0, -0.207, 0.015]}>
+          <boxGeometry args={[0.118, 0.018, 0.155]} />
+          <Mat color={shoes.color} />
+        </mesh>
+        <mesh position={[0, -0.17, 0.035]}>
+          <boxGeometry args={[0.112, 0.016, 0.03]} />
+          <Mat color={shoes.color} />
+        </mesh>
+      </>
+    )
   return (
     <>
       <mesh position-y={-0.05} castShadow>
@@ -365,12 +727,14 @@ function Body({ p, height, drive }: { p: Profile; height: number; drive: Drive }
   })
   const w = BUILDS.find((b) => b.id === p.build)?.width ?? 1
   const hs = heightScale(height)
-  const top = CLOTHING[p.outfit.top ?? 'tee-sky']
-  const bottom = CLOTHING[p.outfit.bottom ?? 'jeans']
-  const shoes = CLOTHING[p.outfit.shoes ?? 'sneakers-white']
-  const hat = p.outfit.hat ? CLOTHING[p.outfit.hat] : null
-  const face = p.outfit.face ? CLOTHING[p.outfit.face] : null
+  const top = dyed(CLOTHING[p.outfit.top ?? 'tee-sky'] ?? CLOTHING['tee-sky'], p.tint?.top)
+  const bottom = dyed(CLOTHING[p.outfit.bottom ?? 'jeans'] ?? CLOTHING.jeans, p.tint?.bottom)
+  const shoes = dyed(CLOTHING[p.outfit.shoes ?? 'sneakers-white'] ?? CLOTHING['sneakers-white'], p.tint?.shoes)
+  const hat = p.outfit.hat ? (CLOTHING[p.outfit.hat] ?? null) : null
+  const face = p.outfit.face ? (CLOTHING[p.outfit.face] ?? null) : null
   const longSleeves = top.cut === 'longsleeve' || top.cut === 'hoodie' || top.cut === 'jacket'
+  // A tank top leaves the shoulders bare
+  const sleeve = top.cut === 'tank' ? p.skin : top.color
   const lowerLeg = bottom.cut === 'pants' ? bottom.color : p.skin
   const upperLeg = bottom.cut === 'skirt' ? p.skin : bottom.color
   const female = p.gender === 'female'
@@ -379,10 +743,10 @@ function Body({ p, height, drive }: { p: Profile; height: number; drive: Drive }
     <group ref={body} scale={[w, hs, w]}>
       {/* Legs swing from the hips */}
       <group ref={legL} position={[-0.065, 0.2, 0]}>
-        <LegParts upper={upperLeg} lower={lowerLeg} shoes={shoes} />
+        <LegParts upper={upperLeg} lower={lowerLeg} shoes={shoes} skin={p.skin} />
       </group>
       <group ref={legR} position={[0.065, 0.2, 0]}>
-        <LegParts upper={upperLeg} lower={lowerLeg} shoes={shoes} />
+        <LegParts upper={upperLeg} lower={lowerLeg} shoes={shoes} skin={p.skin} />
       </group>
 
       {/* Body: the top, with a skirt or dress flaring out below */}
@@ -431,10 +795,10 @@ function Body({ p, height, drive }: { p: Profile; height: number; drive: Drive }
 
       {/* Arms swing from the shoulders */}
       <group ref={armL} position={[-0.185, 0.42, 0]}>
-        <ArmParts sleeve={top.color} forearm={longSleeves ? top.color : p.skin} skin={p.skin} />
+        <ArmParts sleeve={sleeve} forearm={longSleeves ? top.color : p.skin} skin={p.skin} />
       </group>
       <group ref={armR} position={[0.185, 0.42, 0]}>
-        <ArmParts sleeve={top.color} forearm={longSleeves ? top.color : p.skin} skin={p.skin} />
+        <ArmParts sleeve={sleeve} forearm={longSleeves ? top.color : p.skin} skin={p.skin} />
       </group>
 
       {/* The head keeps its shape whatever the height and build */}
@@ -474,7 +838,7 @@ function Body({ p, height, drive }: { p: Profile; height: number; drive: Drive }
           </mesh>
         ))}
         {hat && <Hat c={hat} />}
-        {face && <FaceWear c={face} bigHair={!hat && (p.hair === 'curly' || p.hair === 'buns' || p.hair === 'spiky')} />}
+        {face && <FaceWear c={face} bigHair={!hat && BIG_HAIR.includes(p.hair)} />}
       </group>
     </group>
   )

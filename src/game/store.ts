@@ -4,7 +4,7 @@ import { ITEMS } from './catalog'
 import { canPlace, type Placed, type Rot } from './grid'
 import { STARTER } from './starter'
 import { FLOORS, WALLS } from './surfaces'
-import type { Profile, Slot } from './look'
+import type { Dyeable, Profile, Slot } from './look'
 import { CLOTHING, STARTER_CLOTHES } from './wardrobe'
 import { DEFAULT_OUTFIT } from './look'
 import { bodyOf, type Pet, type PetBody, type Pity } from './pets'
@@ -301,7 +301,24 @@ export function buyClothing(id: string) {
 
 /** Put on (or, with null, take off) a piece of clothing. Tops, bottoms and shoes can't be taken off. */
 export function wear(slot: Slot, id: string | null) {
-  setSave((s) => (s.profile ? { ...s, profile: { ...s.profile, outfit: { ...s.profile.outfit, [slot]: id } } } : s))
+  setSave((s) => {
+    if (!s.profile) return s
+    // A different piece starts out in its own color
+    const tint = { ...s.profile.tint }
+    if (s.profile.outfit[slot] !== id) delete tint[slot as Dyeable]
+    return { ...s, profile: { ...s.profile, outfit: { ...s.profile.outfit, [slot]: id }, tint } }
+  })
+}
+
+/** Dye the shirt, pants or shoes any color (null puts the piece's own color back). Free. */
+export function dye(slot: Dyeable, color: string | null) {
+  setSave((s) => {
+    if (!s.profile) return s
+    const tint = { ...s.profile.tint }
+    if (color) tint[slot] = color
+    else delete tint[slot]
+    return { ...s, profile: { ...s.profile, tint } }
+  })
 }
 
 /**
@@ -322,7 +339,7 @@ export function resetProgress() {
     wall: f.wall,
     owned: f.owned,
     clothes: f.clothes,
-    profile: s.profile ? { ...s.profile, outfit: DEFAULT_OUTFIT } : s.profile,
+    profile: s.profile ? { ...s.profile, outfit: DEFAULT_OUTFIT, tint: {} } : s.profile,
   }))
   setSession((s) => ({ ...s, mode: 'play', selected: null, ghost: null }))
   return true

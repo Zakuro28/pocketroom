@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
-import { BUILDS, DEFAULT_OUTFIT, EYE_COLORS, HAIR_COLORS, HAIR_STYLES, MAX_HEIGHT, MIN_AGE, SKINS, ageOn, feet, gameHeight, type Profile } from '../game/look'
+import { BUILDS, DEFAULT_OUTFIT, EYE_COLORS, GENDERS, HAIR_COLORS, HAIR_STYLES, MAX_HEIGHT, MIN_AGE, SKINS, ageOn, feet, gameHeight, type Profile } from '../game/look'
 import { today } from '../game/store'
 import { Mannequin } from '../scene/Avatar'
 import { blip } from '../lib/sound'
@@ -158,10 +158,7 @@ export default function Creator({ initial, onDone, onCancel }: { initial: Profil
                     label="Gender"
                     value={p.gender}
                     onPick={(gender) => set({ gender })}
-                    options={[
-                      { id: 'female', label: 'Female' },
-                      { id: 'male', label: 'Male' },
-                    ]}
+                    options={GENDERS}
                   />
                 </Field>
               </>
@@ -184,7 +181,7 @@ export default function Creator({ initial, onDone, onCancel }: { initial: Profil
             )}
             {step === 2 && (
               <>
-                <Field label="How tall are you in real life?" hint={`In PocketRoom the tallest is ${feet(MAX_HEIGHT[p.gender])} for ${p.gender === 'male' ? 'boys' : 'girls'}. Under 18, your character grows a little every birthday.`}>
+                <Field label="How tall are you in real life?" hint={`In PocketRoom the tallest is ${feet(MAX_HEIGHT[p.gender])} for ${p.gender === 'male' ? 'boys' : p.gender === 'female' ? 'girls' : 'non-binary characters'}. Under 18, your character grows a little every birthday.`}>
                   <div className="flex items-center gap-3">
                     <input type="range" min={48} max={78} value={p.heightIn} onChange={(e) => set({ heightIn: Number(e.target.value), heightSetOn: today() })} className="flex-1 accent-heart" aria-label="Height" />
                     <span className="w-16 text-right text-lg font-bold tabular-nums">{feet(p.heightIn)}</span>
