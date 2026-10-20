@@ -44,6 +44,7 @@ export function wallHeight(item: Item) {
   if (item.model.startsWith('kitchenCabinetUpper') || item.model.startsWith('hood')) return 0.78
   if (item.model === 'bathroomMirror') return 0.55
   if (item.model === 'coatRack') return 0.62
+  if (item.cat === 'art') return 0.6
   return 0.7
 }
 

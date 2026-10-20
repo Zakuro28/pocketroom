@@ -1,3 +1,5 @@
+import { PAINTINGS, paintingSize } from './paintings'
+
 // Measured bounds of each Kenney model (width x, height y, depth z), in model units (1 = one floor tile of the kit)
 export const SIZES: Record<string, [number, number, number]> = {
   bathroomCabinet: [0.23, 0.39, 0.13],
@@ -140,4 +142,6 @@ export const SIZES: Record<string, [number, number, number]> = {
   wallWindowSlide: [1, 1.29, 0.089],
   washer: [0.39, 0.47, 0.49],
   washerDryerStacked: [0.39, 0.94, 0.49],
+  // Paintings are drawn in code, not loaded from the kit
+  ...Object.fromEntries(PAINTINGS.map((p) => [p.id, paintingSize(p)])),
 }

@@ -22,7 +22,7 @@ function DyeRow({ slot, own, value }: { slot: Dyeable; own: string; value?: stri
   }
   const ring = (on: boolean) => (on ? 'ring-3 ring-ink' : 'ring-1 ring-black/10')
   return (
-    <div className="mt-1">
+    <div className="mt-1 shrink-0">
       <p className="text-xs font-semibold text-ink-soft">Color (free)</p>
       <Slide label="Clothing color" className="-mx-1 gap-2 px-1 pt-1.5 pb-2">
         <button type="button" onClick={() => pick(null)} aria-label="Original color" className={`grid size-8 shrink-0 place-items-center rounded-full text-[10px] font-bold ring-offset-2 ring-offset-cream ${ring(!value)}`} style={{ background: own }}>
@@ -143,7 +143,7 @@ export default function Closet({ open, onClose, say }: { open: boolean; onClose:
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4 sm:p-5">
               <h2 className="text-xl font-bold">Wardrobe</h2>
-              <Slide label="Clothing types" className="mt-3 gap-1.5 pb-2">
+              <Slide label="Clothing types" className="mt-3 shrink-0 gap-1.5 pb-2">
                 {SLOTS.map((s) => (
                   <button
                     key={s.id}

@@ -3,6 +3,8 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import { paintModel } from './paint'
+import { buildPainting } from './paintingModel'
+import { PAINTING } from '../game/paintings'
 import { ITEMS } from '../game/catalog'
 import { CELL, centerOf, footprint, heightOf, rectOf, wallHeight, type Placed } from '../game/grid'
 import { SIZES } from '../game/sizes'
@@ -11,8 +13,10 @@ const url = (model: string) => `/models/${model}.glb`
 
 /** A furniture model, recolored for special versions or the player's fabric choice, centered so it turns on the spot */
 function useFurniture(model: string, paint?: Record<string, string>, fabric?: string, ghost = false) {
-  const { scene } = useGLTF(url(model))
-  return useMemo(() => paintModel(scene, paint, fabric, ghost), [scene, paint, fabric, ghost])
+  // Paintings are built in code; the hook still needs a model to load, so it borrows a tiny one
+  const art = model in PAINTING
+  const { scene } = useGLTF(url(art ? 'computerMouse' : model))
+  return useMemo(() => paintModel(art ? buildPainting(model) : scene, paint, fabric, ghost), [art, model, scene, paint, fabric, ghost])
 }
 
 /** Where an item stands in the world and which way it faces */

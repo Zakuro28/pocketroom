@@ -1,6 +1,8 @@
 import { AmbientLight, Box3, DirectionalLight, Group, OrthographicCamera, Scene, Sphere, Vector3, WebGLRenderer, type Object3D } from 'three'
 import { GLTFLoader } from 'three-stdlib'
 import { paintModel } from './paint'
+import { buildPainting } from './paintingModel'
+import { PAINTING } from '../game/paintings'
 
 /**
  * Sharp pictures of 3D things for the shop, the pet cards and the reel. One hidden renderer draws each
@@ -64,6 +66,8 @@ export async function itemThumb(model: string, paint?: Record<string, string>): 
   const key = `item|${model}|${JSON.stringify(paint ?? {})}`
   const hit = cache.get(key)
   if (hit) return hit
+  // Paintings are pictured straight on, so you can see the art
+  if (model in PAINTING) return snapshot(key, paintModel(buildPainting(model), paint), [0.35, 0.2, 3])
   const scene = await load(model)
   return snapshot(key, paintModel(scene, paint), [1.6, 1.25, 1.6])
 }

@@ -105,14 +105,34 @@ const fresh = (): Save => ({
   owner: null,
 })
 
+/**
+ * Leave out furniture this version of the game doesn't know (a shared home or a visit can include items from a
+ * newer version), so one unknown item never stops the whole room from drawing. Same array when nothing's unknown.
+ * In your own save they go back into storage instead, so a newer version still finds them.
+ * (Plain functions, not consts: loading the save below uses them before this point in the file runs.)
+ */
+function known(placed: Placed[]) {
+  return placed.every((p) => ITEMS[p.id]) ? placed : placed.filter((p) => ITEMS[p.id])
+}
+function knownSave(s: Save): Save {
+  const placed = known(s.placed)
+  if (placed === s.placed) return s
+  const storage = { ...s.storage }
+  s.placed.forEach((p) => {
+    if (!ITEMS[p.id]) storage[p.id] = (storage[p.id] ?? 0) + 1
+  })
+  return { ...s, placed, storage }
+}
+
 function load(): Save {
+  let saved: Save | null = null
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { ...fresh(), ...(JSON.parse(raw) as Partial<Save>) }
+    if (raw) saved = { ...fresh(), ...(JSON.parse(raw) as Partial<Save>) }
   } catch {
     // Storage blocked or broken: start fresh
   }
-  return fresh()
+  return saved ? knownSave(saved) : fresh()
 }
 
 let save = load()
@@ -132,7 +152,7 @@ export const subscribeSave = (fn: () => void) => {
 }
 
 export function setSave(fn: (s: Save) => Save) {
-  save = fn(save)
+  save = knownSave(fn(save))
   emit()
   saveWatchers.forEach((w) => w())
   clearTimeout(timer)
@@ -147,6 +167,8 @@ export function setSave(fn: (s: Save) => Save) {
 
 export function setSession(fn: (s: Session) => Session) {
   session = fn(session)
+  const v = session.visit
+  if (v && known(v.room.placed) !== v.room.placed) session = { ...session, visit: { ...v, room: { ...v.room, placed: known(v.room.placed) } } }
   emit()
 }
 
@@ -356,7 +378,7 @@ export function wipeDevice() {
 
 /** Swap in a saved game that came from the player's account */
 export function replaceSave(next: Save) {
-  save = { ...fresh(), ...next }
+  save = knownSave({ ...fresh(), ...next })
   emit()
   try {
     localStorage.setItem(KEY, JSON.stringify(save))

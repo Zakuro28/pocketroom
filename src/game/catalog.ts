@@ -1,10 +1,12 @@
 // Everything you can buy and place. Prices follow the design (no rarity); models come from Kenney's Furniture Kit (CC0).
+import { PAINTINGS } from './paintings'
+
 // Pacing: a nice room takes about a week of Hearts, a great one about a month.
 
 /** Where an item goes: on the floor (blocks walking), flat on the floor (rugs), on top of a table or counter, or on a wall */
 export type Kind = 'floor' | 'rug' | 'top' | 'wall'
 
-export type Category = 'beds' | 'seating' | 'tables' | 'kitchen' | 'bath' | 'tech' | 'storage' | 'decor' | 'lights' | 'rugs'
+export type Category = 'beds' | 'seating' | 'tables' | 'kitchen' | 'bath' | 'tech' | 'storage' | 'decor' | 'lights' | 'rugs' | 'art'
 
 export const CATEGORIES: { id: Category; label: string; icon: string }[] = [
   { id: 'beds', label: 'Beds', icon: '🛏️' },
@@ -17,6 +19,7 @@ export const CATEGORIES: { id: Category; label: string; icon: string }[] = [
   { id: 'decor', label: 'Decor', icon: '🪴' },
   { id: 'lights', label: 'Lights', icon: '💡' },
   { id: 'rugs', label: 'Rugs', icon: '🟫' },
+  { id: 'art', label: 'Art', icon: '🖼️' },
 ]
 
 /** What tapping an item lets your character do */
@@ -189,6 +192,98 @@ export const CATALOG: Item[] = [
   i('rugRounded', 'rugRounded', 'Soft Rug', 'rugs', 1200, 'rug', { fabric: true }),
   i('starryRug', 'rugRound', 'Starry Night Rug', 'rugs', 10000, 'rug', { paint: { carpet: '#1d2a6b', carpetDarker: '#f4d35e' } }),
 ]
+
+// ---- Added in 1.1.0: 20 new items in every category, and paintings ----
+
+/** A color theme for a whole set of furniture. Every material of the kit gets a color from it. */
+type Theme = { id: string; name: string; wood: string; soft: string; light: string; dark: string; metal: string; lamp: string; plant: string; premium?: boolean }
+
+const THEMES: Theme[] = [
+  { id: 'sakura', name: 'Sakura', wood: '#f3c6d3', soft: '#ff9fbd', light: '#fff1f5', dark: '#c97b93', metal: '#f6d5de', lamp: '#fff2d6', plant: '#ff9fc0' },
+  { id: 'mint', name: 'Mint', wood: '#cfeee0', soft: '#7fd8b4', light: '#f2fffa', dark: '#4f9e82', metal: '#bfe8d8', lamp: '#f6fff0', plant: '#6cc47a' },
+  { id: 'lemon', name: 'Lemon', wood: '#fbe7a1', soft: '#ffd85a', light: '#fffbe8', dark: '#c9a23a', metal: '#f4e2a0', lamp: '#fff6c8', plant: '#9bd16f' },
+  { id: 'ocean', name: 'Ocean', wood: '#b9d7ea', soft: '#3c8cf0', light: '#eef7ff', dark: '#26508f', metal: '#a9c8e6', lamp: '#e9f6ff', plant: '#4fb0a0' },
+  { id: 'lavender', name: 'Lavender', wood: '#ddd0f2', soft: '#a77bf0', light: '#f7f2ff', dark: '#6a4fb0', metal: '#d4c6f0', lamp: '#fbf3ff', plant: '#a98bd9' },
+  { id: 'cocoa', name: 'Cocoa', wood: '#6b4430', soft: '#c49a6c', light: '#f2e3cf', dark: '#3e271c', metal: '#8a6a52', lamp: '#ffe2b0', plant: '#6f9b4f' },
+  { id: 'cloud', name: 'Cloud', wood: '#f5f7fb', soft: '#e6ecf5', light: '#ffffff', dark: '#b9c3d3', metal: '#e9edf3', lamp: '#ffffff', plant: '#9fd1b0' },
+  { id: 'forest', name: 'Forest', wood: '#7a5a3a', soft: '#4f7a4a', light: '#e9efe2', dark: '#2f4a2c', metal: '#6c7a5c', lamp: '#fff0c8', plant: '#3f8a4a' },
+  { id: 'sunset', name: 'Sunset', wood: '#f2b07a', soft: '#f2724c', light: '#fff0e3', dark: '#b34a2e', metal: '#f0b896', lamp: '#ffd9a8', plant: '#e7a34a' },
+  { id: 'noir', name: 'Noir', wood: '#2b2a30', soft: '#3b3a42', light: '#e9e6e1', dark: '#141317', metal: '#4a4952', lamp: '#fff5d6', plant: '#4a6b4a' },
+  { id: 'peach', name: 'Peach', wood: '#f7d2bd', soft: '#ffb38a', light: '#fff6f0', dark: '#d08560', metal: '#f2cdb8', lamp: '#fff3e2', plant: '#f0a07a' },
+  { id: 'matcha', name: 'Matcha', wood: '#c9d6a3', soft: '#9cbb6a', light: '#f6f8ea', dark: '#5e7a3a', metal: '#c4cfa0', lamp: '#f9ffe4', plant: '#7da54a' },
+  { id: 'ember', name: 'Ember', wood: '#8a3a2e', soft: '#e2443a', light: '#ffe9e3', dark: '#5a1f18', metal: '#b85a4a', lamp: '#ffd0a0', plant: '#c94f3b' },
+  { id: 'frost', name: 'Frost', wood: '#dff1fb', soft: '#9fdcf5', light: '#ffffff', dark: '#6aa9cc', metal: '#cfe9f6', lamp: '#f0fbff', plant: '#a6e0e8' },
+  { id: 'retro', name: 'Retro', wood: '#e0a46a', soft: '#2fb3a0', light: '#fdf3df', dark: '#b5562e', metal: '#e6c48a', lamp: '#ffe6a8', plant: '#e8743b' },
+  { id: 'candy', name: 'Candy', wood: '#ffd3e6', soft: '#8fd6f7', light: '#fffafc', dark: '#f07fb0', metal: '#ffc8de', lamp: '#fff3fa', plant: '#ff8fc0' },
+  { id: 'berry', name: 'Berry', wood: '#7a2f4f', soft: '#b8327a', light: '#fbe6f0', dark: '#4a1a32', metal: '#a35a7a', lamp: '#ffd9ef', plant: '#c13584' },
+  { id: 'gilded', name: 'Gilded', wood: GOLD, soft: '#f6e3a0', light: '#fff8e1', dark: '#a87a1e', metal: GOLD, lamp: '#fff1c0', plant: '#d9a93b', premium: true },
+  { id: 'galaxy', name: 'Galaxy', wood: '#2a2560', soft: '#5b3fa8', light: '#d9d0ff', dark: '#141033', metal: '#8a7cf0', lamp: '#f4ecff', plant: '#b06bff', premium: true },
+  { id: 'crystal', name: 'Crystal', wood: '#e6f7ff', soft: '#bfe9ff', light: '#ffffff', dark: '#5aa9d6', metal: '#d6f2ff', lamp: '#ffffff', plant: '#9fe6ff', premium: true },
+]
+
+/** A color a little darker, for the shaded parts of fabric */
+const darker = (hex: string) =>
+  `#${[1, 3, 5]
+    .map((k) =>
+      Math.round(parseInt(hex.slice(k, k + 2), 16) * 0.72)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`
+
+const themePaint = (t: Theme): Record<string, string> => ({
+  wood: t.wood,
+  woodDark: t.dark,
+  carpet: t.soft,
+  carpetBlue: t.soft,
+  carpetDarker: darker(t.soft),
+  carpetWhite: t.light,
+  metal: t.metal,
+  metalMedium: t.metal,
+  metalLight: t.light,
+  metalDark: t.dark,
+  lamp: t.lamp,
+  plant: t.plant,
+  fur: t.soft,
+})
+
+/** The kit models each category's themed sets are made from */
+const THEMED: Record<Exclude<Category, 'art'>, string[]> = {
+  beds: ['bedSingle', 'bedDouble', 'bedBunk', 'cabinetBedDrawerTable'],
+  seating: ['loungeSofa', 'loungeChair', 'chairCushion', 'loungeSofaLong', 'pillow'],
+  tables: ['tableRound', 'tableCoffee', 'desk', 'sideTable'],
+  kitchen: ['kitchenFridge', 'kitchenStove', 'kitchenCabinet', 'kitchenCoffeeMachine', 'kitchenMicrowave'],
+  bath: ['bathtub', 'toilet', 'shower', 'washer', 'bathroomSink'],
+  tech: ['televisionVintage', 'laptop', 'speaker', 'radio', 'computerScreen'],
+  storage: ['bookcaseOpen', 'bookcaseClosedDoors', 'bookcaseOpenLow', 'coatRackStanding'],
+  decor: ['pottedPlant', 'bear', 'plantSmall1', 'plantSmall3'],
+  lights: ['lampRoundFloor', 'lampSquareTable', 'lampWall', 'lampRoundTable', 'lampSquareFloor'],
+  rugs: ['rugRound', 'rugRectangle', 'rugSquare', 'rugRounded'],
+}
+
+/** Every category gets one item in each of the 20 themes, cycling through its models */
+const themedItems = (base: Record<string, Item>): Item[] =>
+  (Object.keys(THEMED) as (keyof typeof THEMED)[]).flatMap((cat) =>
+    THEMES.map((t, k) => {
+      const model = THEMED[cat][k % THEMED[cat].length]
+      const b = base[model]
+      const price = Math.max(b.price + 200, Math.round((b.price * (t.premium ? 4 : 1.4)) / 50) * 50)
+      return { ...b, id: `${t.id}-${model}`, name: `${t.name} ${b.name}`, price, paint: themePaint(t), fabric: false }
+    }),
+  )
+
+const ART: Item[] = PAINTINGS.map((p) => i(p.id, p.id, p.name, 'art', p.price, 'wall'))
+
+/**
+ * Price rebalance (1.1.0): plain kit furniture from 1,000 Hearts up costs about 10% less, so a nice room comes
+ * a little sooner. Special editions keep their prices.
+ */
+CATALOG.forEach((x) => {
+  if (!x.paint && x.price >= 1000) x.price = Math.round((x.price * 0.9) / 50) * 50
+})
+
+const BASE: Record<string, Item> = Object.fromEntries(CATALOG.map((x) => [x.id, x]))
+CATALOG.push(...themedItems(BASE), ...ART)
 
 export const ITEMS: Record<string, Item> = Object.fromEntries(CATALOG.map((x) => [x.id, x]))
 

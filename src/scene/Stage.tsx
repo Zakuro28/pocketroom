@@ -21,7 +21,7 @@ import { speciesOf } from '../game/pets'
 import { careForPartnerPet } from '../game/petActions'
 
 // Start downloading every furniture model right away (2 MB in all), so the shop opens instantly
-new Set(CATALOG.map((i) => i.model)).forEach((m) => useGLTF.preload(`/models/${m}.glb`))
+new Set(CATALOG.filter((i) => i.cat !== 'art').map((i) => i.model)).forEach((m) => useGLTF.preload(`/models/${m}.glb`))
 
 const W = ROOM.w * CELL
 const D = ROOM.d * CELL
