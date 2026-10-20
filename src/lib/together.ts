@@ -288,6 +288,19 @@ async function syncClock() {
   if (data) setServerTime(Date.parse(data as string) + (Date.now() - t0) / 2)
 }
 
+/**
+ * A shared home's day (pet care, the jar's daily Hearts) starts at midnight in the home's time zone. Homes made
+ * without one were left on UTC, which is 8 in the morning in the Philippines; this moves such a home onto your
+ * time zone, once. Needs supabase/stage9.sql; without it nothing changes.
+ */
+async function fixHomeClock() {
+  const h = state.home
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (!supabase || !h || h.tz !== 'UTC' || !tz || tz === 'UTC') return
+  const { error } = await supabase.rpc('set_home_tz', { p_link: h.link, p_tz: tz })
+  if (!error) await refresh()
+}
+
 /** Played today: counts toward Chemistry, and pays it out while you're both online */
 async function checkIn() {
   const c = coupleOf(state)
@@ -321,6 +334,7 @@ export async function startTogether(id: string) {
   if (existing) await supabase.from('cards').update(card).eq('id', id)
   else await supabase.from('cards').insert({ id, ...card })
   await refresh()
+  void fixHomeClock()
   void checkIn()
 
   // Live: requests arriving, a partner decorating, the jar changing

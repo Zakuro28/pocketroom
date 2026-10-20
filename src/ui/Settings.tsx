@@ -67,6 +67,7 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
   const partner = useTogether((t) => (couple ? t.cards[otherOf(couple)]?.name || 'your partner' : ''))
   const [breaking, setBreaking] = useState(false)
   const [breakErr, setBreakErr] = useState('')
+  const [anniversary, setAnniversaryDate] = useState('')
   return (
     <AnimatePresence>
       {open && (
@@ -155,23 +156,32 @@ export default function Settings({ open, onClose, place, onPick, onLocate, onCus
             {couple && (
               <div className="mt-3 rounded-2xl bg-white p-4">
                 <p className="font-semibold">💞 In a couple with {partner}</p>
-                {/* The anniversary: a monthsary pet comes on this day every month */}
-                <label className="mt-2 block text-sm text-ink-soft">
-                  Anniversary
-                  <input
-                    type="date"
-                    key={couple.anniversary ?? 'none'}
-                    defaultValue={couple.anniversary ?? ''}
-                    max={today()}
-                    onChange={async (e) => {
-                      if (!e.target.value) return
-                      const err = await setAnniversary(couple.id, e.target.value)
-                      setBreakErr(err ?? '')
-                      if (!err) say('Anniversary saved 💞 A monthsary pet comes on this day every month')
-                    }}
-                    className="mt-1 w-full rounded-xl bg-paper px-3 py-2 text-base text-ink outline-none focus:ring-2 focus:ring-sun"
-                  />
-                </label>
+                {/* The anniversary: a monthsary pet comes on this day every month. It's set once and then stays. */}
+                {couple.anniversary ? (
+                  <p className="mt-2 text-sm text-ink-soft">
+                    Anniversary: <span className="font-semibold text-ink">{new Date(`${couple.anniversary}T00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span> 💞
+                  </p>
+                ) : (
+                  <div className="mt-2 text-sm text-ink-soft">
+                    <label htmlFor="anniversary">Anniversary (set once, it stays)</label>
+                    <div className="mt-1 flex gap-2">
+                      <input id="anniversary" type="date" value={anniversary} max={today()} onChange={(e) => setAnniversaryDate(e.target.value)} className="min-w-0 flex-1 rounded-xl bg-paper px-3 py-2 text-base text-ink outline-none focus:ring-2 focus:ring-sun" />
+                      <button
+                        type="button"
+                        disabled={!anniversary}
+                        onClick={async () => {
+                          const err = await setAnniversary(couple.id, anniversary)
+                          setBreakErr(err ?? '')
+                          if (!err) say('Anniversary saved 💞 A monthsary pet comes on this day every month')
+                        }}
+                        className="chunky shrink-0 rounded-xl bg-heart px-4 py-2 font-bold text-white disabled:bg-[#d7cfc4]"
+                      >
+                        Save
+                      </button>
+                    </div>
+                    {breakErr && !breaking && <p className="mt-1 text-heart">{breakErr}</p>}
+                  </div>
+                )}
                 {breaking ? (
                   <>
                     <p className="mt-1 text-sm text-ink-soft">You’ll both keep a copy of the room and half the Hearts jar. After a breakup there’s a 1-month wait before a new couple.</p>

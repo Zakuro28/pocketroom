@@ -8,6 +8,7 @@ import Welcome from './ui/Welcome'
 import Notes from './ui/Notes'
 import { HomeChat } from './ui/HomeChat'
 import { usePartnerHere } from './lib/homeLive'
+import { useCuddleTime } from './game/cuddle'
 import { CURRENT_VERSION } from './game/updates'
 import { blip } from './lib/sound'
 import { coupleOf, leaveVisit, onNote, otherOf, shareWeather, useTogether } from './lib/together'
@@ -86,6 +87,8 @@ export default function App() {
   }, [])
 
   useEffect(() => onNote(say), [say])
+  // Cuddle time: extra Hearts while you're both home together
+  useCuddleTime(partnerHere && !visit && !touring, partnerName, say)
   // Birthday Hearts, once a year (checked now and then, so it arrives even if the game stays open past midnight)
   const name = profile?.name
   useEffect(() => {

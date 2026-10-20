@@ -45,6 +45,8 @@ export type Save = {
   owner?: string | null
   /** The newest patch notes this player has read (see src/game/updates.ts) */
   seenVersion?: string
+  /** Cuddle time paid out today (see src/game/cuddle.ts) */
+  cuddle?: { day: string; times: number }
 }
 
 /** A room as other players see it, with the pets living in it */
