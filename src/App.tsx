@@ -128,7 +128,7 @@ export default function App() {
   const toggleEdit = () => {
     blip()
     if (mode === 'play') cancel()
-    setSession((s) => ({ ...s, mode: s.mode === 'play' ? 'edit' : 'play', selected: null, ghost: null }))
+    setSession((s) => ({ ...s, mode: s.mode === 'play' ? 'edit' : 'play', selected: null, ghost: null, trying: null }))
   }
 
   return (

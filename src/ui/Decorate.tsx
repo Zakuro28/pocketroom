@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Check, Move, Package, Palette, RotateCw, X } from 'lucide-react'
 import { CATALOG, CATEGORIES, FABRICS, ITEMS, type Category, type Item } from '../game/catalog'
 import { canPlace, type Rot } from '../game/grid'
-import { buy, buySurface, cancelGhost, commitGhost, getSave, getSession, recolor, rotateGhost, setSave, setSession, startMoving, startPlacing, store, useSave, useSession } from '../game/store'
+import { buyGhost, buySurface, cancelGhost, commitGhost, getSave, getSession, previewItem, recolor, rotateGhost, setSave, setSession, startMoving, startPlacing, store, tryOn, useSave, useSession } from '../game/store'
 import { FLOORS, WALLS, swatch, type Surface } from '../game/surfaces'
 import { Slide } from './Slide'
 import { cachedItemThumb, itemThumb } from '../scene/thumbs'
@@ -19,7 +19,7 @@ function ItemPic({ item, className }: { item: Item; className: string }) {
   }, [item, src])
   return src ? <img src={src} alt="" className={`object-contain ${className}`} draggable={false} /> : <span className={`animate-pulse rounded-xl bg-line/50 ${className}`} aria-hidden />
 }
-import { buyChime, lift, nope, place } from '../lib/sound'
+import { blip, buyChime, lift, nope, place } from '../lib/sound'
 
 const EASE = [0.23, 1, 0.32, 1] as const
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -27,11 +27,15 @@ type Tab = Category | 'owned' | 'surfaces'
 
 const sheet = { initial: { y: 40, opacity: 0 }, animate: { y: 0, opacity: 1 }, exit: { y: 30, opacity: 0, transition: { duration: 0.15 } }, transition: { duration: 0.28, ease: EASE } }
 
-/** Everything shown while decorating: the catalog, the placing bar, the selected-item bar and the buy window */
+/**
+ * Everything shown while decorating: the catalog, the placing bar and the selected-item bar. Anything from the shop
+ * shows in your room first (furniture as a preview to place, floors and wallpaper on the room) and is paid for only
+ * when you tap Buy.
+ */
 export default function Decorate({ say }: { say: (msg: string) => void }) {
   const ghost = useSession((s) => s.ghost)
   const selected = useSession((s) => s.selected)
-  const [buying, setBuying] = useState<Item | Surface | null>(null)
+  const trying = useSession((s) => s.trying)
 
   // Keyboard: R rotates, Esc cancels or deselects, Delete puts the selected item away
   useEffect(() => {
@@ -43,6 +47,7 @@ export default function Decorate({ say }: { say: (msg: string) => void }) {
         else if (s.selected) rotatePlaced(s.selected, say)
       } else if (e.key === 'Escape') {
         if (s.ghost) cancelGhost()
+        else if (s.trying) tryOn(null)
         else setSession((x) => ({ ...x, selected: null }))
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && s.selected) store(s.selected)
     }
@@ -53,9 +58,16 @@ export default function Decorate({ say }: { say: (msg: string) => void }) {
   return (
     <>
       <AnimatePresence mode="wait">
-        {ghost ? <PlacingBar key="ghost" valid={ghost.valid} /> : selected ? <SelectedBar key={selected} uid={selected} say={say} /> : <Catalog key="catalog" onBuy={setBuying} />}
+        {ghost ? (
+          <PlacingBar key="ghost" valid={ghost.valid} buying={ghost.buying ? ITEMS[ghost.id] : null} say={say} />
+        ) : trying ? (
+          <TryBar key="trying" kind={trying.kind} id={trying.id} say={say} />
+        ) : selected ? (
+          <SelectedBar key={selected} uid={selected} say={say} />
+        ) : (
+          <Catalog key="catalog" />
+        )}
       </AnimatePresence>
-      <BuyWindow item={buying} onClose={() => setBuying(null)} say={say} />
     </>
   )
 }
@@ -85,29 +97,33 @@ function Card({ thumb, name, children, onClick, active = false }: { thumb: React
   )
 }
 
-function Catalog({ onBuy }: { onBuy: (i: Item | Surface) => void }) {
+function Catalog() {
   const storage = useSave((s) => s.storage)
   const hearts = useSave((s) => s.hearts)
   const floor = useSave((s) => s.floor)
   const wall = useSave((s) => s.wall)
   const owned = useSave((s) => s.owned)
-  const ownedCount = Object.values(storage).reduce((a, b) => a + b, 0)
+  // Only things this version of the game knows (an unknown item from a newer version waits in storage, unseen)
+  const ownedCount = Object.entries(storage).reduce((a, [id, n]) => a + (ITEMS[id] ? n : 0), 0)
   const [tab, setTab] = useState<Tab>(ownedCount ? 'owned' : 'seating')
   const items = useMemo(() => (tab === 'owned' ? CATALOG.filter((i) => storage[i.id]) : tab === 'surfaces' ? [] : CATALOG.filter((i) => i.cat === tab).sort((a, b) => a.price - b.price)), [tab, storage])
 
   const tabs: { id: Tab; label: string; icon: string }[] = [{ id: 'owned', label: `Owned${ownedCount ? ` ${ownedCount}` : ''}`, icon: '📦' }, ...CATEGORIES, { id: 'surfaces', label: 'Floor & walls', icon: '🎨' }]
 
+  // Owned: place it. Not owned yet: see it in the room first, and buy it from there.
   const pick = (i: Item) => {
-    if (storage[i.id]) {
-      startPlacing(i.id)
-      lift()
-    } else onBuy(i)
+    if (storage[i.id]) startPlacing(i.id)
+    else previewItem(i.id)
+    lift()
   }
   const pickSurface = (s: Surface, kind: 'floor' | 'wall') => {
     if (owned.includes(s.id)) {
       setSave((x) => ({ ...x, [kind]: s.id }))
       place()
-    } else onBuy(s)
+    } else {
+      blip()
+      tryOn({ kind, id: s.id })
+    }
   }
 
   return (
@@ -168,12 +184,26 @@ function Price({ price, hearts, owned = false }: { price: number; hearts: number
   return <span className={`mt-0.5 text-xs font-bold tabular-nums ${hearts >= price ? 'text-heart' : 'text-ink-soft/60'}`}>💗 {fmt(price)}</span>
 }
 
-function PlacingBar({ valid }: { valid: boolean }) {
+/** Placing something: rotate, cancel, or place it. From the shop, placing it is buying it. */
+function PlacingBar({ valid, buying, say }: { valid: boolean; buying: Item | null; say: (m: string) => void }) {
+  const hearts = useSave((s) => s.hearts)
+  const short = buying ? buying.price - hearts : 0
+  const buyHere = () => {
+    if (!buying || short > 0 || !buyGhost()) return nope()
+    buyChime()
+    place()
+    say(`${buying.name} is yours! ✨`)
+  }
   return (
     <motion.div {...sheet} className="pointer-events-auto absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] mx-auto flex w-fit flex-col items-center gap-2">
+      {buying && (
+        <p className="rounded-full bg-cream px-3.5 py-1.5 text-sm font-bold shadow-[0_3px_0_rgba(74,52,40,0.12)]">
+          {buying.name} <span className="text-heart tabular-nums">💗 {fmt(buying.price)}</span> <span className="font-medium text-ink-soft">· preview</span>
+        </p>
+      )}
       <p className="rounded-full bg-cream/95 px-3 py-1 text-xs font-medium text-ink-soft">
-        <span className="pointer-coarse:hidden">Click to place · R to rotate · Esc to cancel</span>
-        <span className="hidden pointer-coarse:inline">Tap where it goes, then ✓</span>
+        <span className="pointer-coarse:hidden">{buying ? 'Click where it goes to see it · R to rotate · Esc to cancel (free)' : 'Click to place · R to rotate · Esc to cancel'}</span>
+        <span className="hidden pointer-coarse:inline">{buying ? 'Tap where it goes to see it, then buy' : 'Tap where it goes, then ✓'}</span>
       </p>
       <div className="flex gap-2">
         <button type="button" onClick={cancelGhost} aria-label="Cancel" className="chunky grid size-14 place-items-center rounded-2xl bg-white text-ink">
@@ -182,14 +212,50 @@ function PlacingBar({ valid }: { valid: boolean }) {
         <button type="button" onClick={rotateGhost} aria-label="Rotate" className="chunky grid size-14 place-items-center rounded-2xl bg-white text-ink">
           <RotateCw className="size-6" />
         </button>
-        <button
-          type="button"
-          onClick={() => (commitGhost() ? place() : nope())}
-          disabled={!valid}
-          aria-label="Place here"
-          className="chunky grid size-14 place-items-center rounded-2xl bg-mint text-white disabled:bg-[#d7cfc4]"
-        >
-          <Check className="size-7" strokeWidth={3} />
+        {buying ? (
+          <button type="button" onClick={buyHere} disabled={!valid || short > 0} className="chunky h-14 rounded-2xl bg-heart px-5 font-bold text-white disabled:bg-[#d7cfc4]">
+            {short > 0 ? `Need ${fmt(short)} more` : `Buy · 💗 ${fmt(buying.price)}`}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => (commitGhost() ? place() : nope())}
+            disabled={!valid}
+            aria-label="Place here"
+            className="chunky grid size-14 place-items-center rounded-2xl bg-mint text-white disabled:bg-[#d7cfc4]"
+          >
+            <Check className="size-7" strokeWidth={3} />
+          </button>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+/** A floor or wallpaper shown on the room before buying it: buy it, or put yours back */
+function TryBar({ kind, id, say }: { kind: 'floor' | 'wall'; id: string; say: (m: string) => void }) {
+  const hearts = useSave((s) => s.hearts)
+  const s = (kind === 'floor' ? FLOORS : WALLS).find((x) => x.id === id)
+  if (!s) return null
+  const short = s.price - hearts
+  const buyIt = () => {
+    if (short > 0 || !buySurface(s.id, s.price)) return nope()
+    buyChime()
+    setSave((x) => ({ ...x, [kind]: s.id }))
+    tryOn(null)
+    say(`${s.name} is on! ✨`)
+  }
+  return (
+    <motion.div {...sheet} className="pointer-events-auto absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] mx-auto flex w-fit max-w-[calc(100%-2rem)] flex-col items-center gap-2">
+      <p className="rounded-full bg-cream px-3.5 py-1.5 text-sm font-bold shadow-[0_3px_0_rgba(74,52,40,0.12)]">
+        {s.name} <span className="text-heart tabular-nums">💗 {fmt(s.price)}</span> <span className="font-medium text-ink-soft">· preview</span>
+      </p>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => tryOn(null)} className="chunky h-14 rounded-2xl bg-white px-5 font-semibold">
+          Cancel
+        </button>
+        <button type="button" onClick={buyIt} disabled={short > 0} className="chunky h-14 rounded-2xl bg-heart px-5 font-bold text-white disabled:bg-[#d7cfc4]">
+          {short > 0 ? `Need ${fmt(short)} more` : `Buy · 💗 ${fmt(s.price)}`}
         </button>
       </div>
     </motion.div>
@@ -236,60 +302,5 @@ function SelectedBar({ uid, say }: { uid: string; say: (m: string) => void }) {
         </button>
       </div>
     </motion.div>
-  )
-}
-
-function BuyWindow({ item, onClose, say }: { item: Item | Surface | null; onClose: () => void; say: (m: string) => void }) {
-  const hearts = useSave((s) => s.hearts)
-  const isItem = item !== null && 'model' in item
-  const short = item ? item.price - hearts : 0
-  const confirm = () => {
-    if (!item) return
-    if (isItem) {
-      if (!buy(item.id)) return nope()
-      buyChime()
-      startPlacing(item.id)
-    } else {
-      if (!buySurface(item.id, item.price)) return nope()
-      buyChime()
-      const kind = FLOORS.some((f) => f.id === item.id) ? 'floor' : 'wall'
-      setSave((s) => ({ ...s, [kind]: item.id }))
-      say(`${item.name} is on! ✨`)
-    }
-    onClose()
-  }
-  return (
-    <AnimatePresence>
-      {item && (
-        <motion.div className="pointer-events-auto fixed inset-0 z-40 grid place-items-center bg-ink/30 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }} onClick={onClose}>
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Buy ${item.name}`}
-            initial={{ opacity: 0, scale: 0.94, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.12 } }}
-            transition={{ type: 'spring', duration: 0.4, bounce: 0.25 }}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain w-full max-w-xs rounded-[2rem] bg-cream p-5 text-center shadow-2xl"
-          >
-            <div className="mx-auto grid size-32 place-items-center rounded-3xl bg-white">
-              {isItem ? <ItemPic item={item} className="size-28" /> : <span className="size-20 rounded-2xl" style={{ background: item.base }} />}
-            </div>
-            <h2 className="mt-3 text-xl font-bold">{item.name}</h2>
-            <p className="mt-1 text-2xl font-bold text-heart tabular-nums">💗 {fmt(item.price)}</p>
-            <p className="mt-1 text-sm text-ink-soft">You have 💗 {fmt(hearts)}</p>
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={onClose} className="chunky flex-1 rounded-2xl bg-white py-3 font-semibold">
-                Not now
-              </button>
-              <button type="button" onClick={confirm} disabled={short > 0} className="chunky flex-1 rounded-2xl bg-heart py-3 font-bold text-white disabled:bg-[#d7cfc4]">
-                {short > 0 ? `Need ${fmt(short)} more` : isItem ? 'Buy & place' : 'Buy'}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   )
 }
