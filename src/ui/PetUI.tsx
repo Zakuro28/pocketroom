@@ -698,11 +698,12 @@ export function PetsPanel({ open, focus, onClose, onDeliveries, say }: { open: b
   const selected = pets.find((p) => p.uid === want)
   // Living together: your partner's room pets can be opened too (tapped in the room, or from their tab)
   const living = useSave((s) => s.home)
-  const partner = useTogether((t) => {
+  // Each pick returns a value straight from the shared state (never a new object), or React re-renders forever
+  const partnerCard = useTogether((t) => {
     const c = coupleOf(t)
-    const card = c && living === c.id ? t.cards[otherOf(c)] : undefined
-    return card ? { name: card.name || 'Partner', pets: card.room?.pets ?? [] } : null
+    return c && living === c.id ? t.cards[otherOf(c)] : undefined
   })
+  const partner = partnerCard ? { name: partnerCard.name || 'Partner', pets: partnerCard.room?.pets ?? [] } : null
   const partnerPet = !selected && partner ? partner.pets.find((p) => p.uid === want) : undefined
   const list = tab === 'room' ? roomPets(pets) : fosterPets(pets)
   return (
